@@ -12,6 +12,7 @@ Windows 10 / 11 64 位 · 单文件 exe 20.7 MB · MIT
 > 仓库：**https://github.com/podcatcher962/sheaf**
 > 作者：**永远的兰兰（Lanlan Eternal）**
 > 下载：**[Releases](https://github.com/podcatcher962/sheaf/releases)**
+> 在线版（免下载）：**https://podcatcher962.github.io/sheaf/** — 同一份代码在浏览器里跑，照片不出本机
 
 *A small offline image tool for Windows. Four modes: ID photo (7 specs, 3 background
 colors, size ceiling, and a readiness check), compress / convert, 3×3 grid split, and
