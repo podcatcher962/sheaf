@@ -137,13 +137,13 @@ vertical stitching. Nothing is uploaded — no network code in the program.*
 | 13 张真实手机照片批量回归（构图头顶比例落在 7–14% 算合格） | **63/65** |
 | 国考成品 | 295 × 413、**9.9 KB**、底色纯度 **95%** |
 | 自动摆正（倾斜 6° 的合成样本） | 残余 **0.64°**；正立的照片一次都不转 |
-| 冷启动到可处理 | 3 秒左右（模型按需加载，不拖慢启动） |
+| 启动 | 界面先出来，两个模型按需加载，不阻塞操作 |
 
 不完美的地方，也写在这里：
 
-- 两张低分辨率截图（长边不到 600 px）抠底后边缘留了一圈杂色，底色纯度只有 **85–89%**，
+- 一张小尺寸 PNG 换底后边缘留了一圈杂色，底色纯度只有 **88.8%**（其余 12 张都在 94–98%），
   体检会标黄提醒，但导出的图确实不算干净；
-- 一张正面全身照头顶压到 **18.6%**，因为缩放已到上限（8 倍），构图偏下；
+- 一张正面全身照头顶压到 **20.3%**，因为缩放已到上限（8 倍），构图偏下——这种片子让人退后重拍最省事；
 - 侧身、举手机自拍这类源片，构图能对齐，但**身体还是歪的**——这是不做合成的前提，改不了。
 
 ---
@@ -262,10 +262,10 @@ JPEG re-compression level. Each item returns ok / warn / bad with a number and a
 | Auto-level on a 6° tilted sample | **0.64°** residual; upright photos are left untouched |
 | Cold start to first process | ~3 s (models load on demand) |
 
-Known rough edges: two low-resolution screenshots leave a fringe after mask-based background
-replacement (purity 85–89 %); one full-body shot lands at 18.6 % headroom because zoom is capped
-at 8×; and a selfie shot with the arm raised keeps a tilted body — that is the trade-off of not
-compositing.
+Known rough edges: one small low-resolution PNG leaves a fringe after mask-based background
+replacement (purity 88.8 % while the other twelve sit at 94–98 %); one full-body shot lands at
+20.3 % headroom because zoom is capped at 8×; and a selfie shot with the arm raised keeps a
+tilted body — that is the trade-off of not compositing.
 
 ## Privacy
 
