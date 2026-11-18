@@ -1,0 +1,3183 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>拾幅 Sheaf — 图片批处理</title>
+<style>
+:root{
+  --bg:#0e1014; --bg2:#161a20; --bg3:#1d222a; --line:#262d37;
+  --txt:#e9edf3; --dim:#8e97a6; --dim2:#6b7480;
+  --acc:#f2a33c; --acc-d:#d9891f; --ok:#3ddc97; --err:#ff6b6b;
+  --r:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+html[data-theme="light"]{
+  --bg:#f2f4f7; --bg2:#ffffff; --bg3:#f7f9fb; --line:#e3e7ed;
+  --txt:#14181f; --dim:#66707e; --dim2:#8a94a2;
+  --acc:#e8932a; --acc-d:#c97a14; --ok:#12a06a; --err:#d93636;
+  --shadow:0 8px 24px rgba(16,24,40,.08);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--txt);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+.app{height:100dvh;display:flex;flex-direction:column}
+
+/* ---------- 顶栏 ---------- */
+.top{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 18px;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding-top:calc(12px + env(safe-area-inset-top));
+  flex:none;
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{width:30px;height:30px;flex:none;border-radius:9px;background:linear-gradient(140deg,var(--acc),#ff7a45);
+  display:grid;place-items:center;color:#1a1206;font-weight:800;font-size:15px}
+.tt h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px;line-height:1.2;
+  display:flex;align-items:baseline;gap:7px}
+.tt h1 em{font-style:normal;font-size:10.5px;font-weight:500;letter-spacing:.09em;
+  color:var(--dim2);text-transform:uppercase}
+.tt span{font-size:11.5px;color:var(--dim2)}
+.tools{display:flex;gap:8px}
+.ic{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg3);display:grid;place-items:center;font-size:15px;line-height:1;
+  transition:.15s;
+}
+.ic:hover{border-color:var(--acc);color:var(--acc)}
+
+/* ---------- 主体 ---------- */
+.main{flex:1;display:grid;grid-template-columns:1fr 344px;min-height:0}
+.stage{overflow:auto;padding:18px;display:flex;flex-direction:column}
+.side{
+  border-left:1px solid var(--line);background:var(--bg2);overflow:auto;
+  padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+/* 模式条 */
+.modes{display:flex;gap:7px;margin-bottom:12px;flex:none;overflow-x:auto;scrollbar-width:none}
+.modes::-webkit-scrollbar{display:none}
+.modes button{
+  padding:7px 15px;border-radius:99px;border:1px solid var(--line);background:var(--bg2);
+  font-size:13px;color:var(--dim);white-space:nowrap;flex:none;transition:.15s;
+}
+.modes button.on{background:color-mix(in srgb,var(--acc) 15%,var(--bg2));color:var(--acc);border-color:var(--acc);font-weight:600}
+
+/* 拖放区 */
+.drop{
+  border:1.5px dashed var(--line);border-radius:20px;background:var(--bg2);
+  flex:1;min-height:340px;display:grid;place-items:center;text-align:center;padding:30px 20px;
+  transition:.18s;
+}
+.drop.hot{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 7%,var(--bg2))}
+.drop.hide{display:none}
+.dz h2{margin:16px 0 6px;font-size:19px;font-weight:650}
+.dz p{margin:0;color:var(--dim);font-size:13px}
+.dzbtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0 14px}
+.dzi{width:54px;height:54px;color:var(--dim2)}
+
+/* 列表 */
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:14px;align-content:start}
+.list:empty{margin:0;display:none}
+.card{
+  display:flex;gap:11px;align-items:center;padding:10px;border-radius:var(--r);
+  background:var(--bg2);border:1px solid var(--line);position:relative;min-width:0;
+}
+.card.proc{border-color:var(--acc)}
+.card.done{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.card.bad{border-color:var(--err)}
+.card img.th{
+  width:58px;height:58px;border-radius:10px;object-fit:cover;background:var(--bg3);flex:none;
+}
+.meta{min-width:0;flex:1}
+.meta .n{font-size:13px;font-weight:560;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .s{font-size:11.5px;color:var(--dim2);margin-top:2px;font-variant-numeric:tabular-nums}
+.meta .r{font-size:11.5px;color:var(--dim);margin-top:3px;font-variant-numeric:tabular-nums}
+.meta .r b{color:var(--ok);font-weight:600}
+.meta .r b.up{color:var(--err)}
+.card img.th{cursor:zoom-in}
+.card.wide{grid-column:1/-1;border-width:1.5px}
+.card .wide-th{width:76px;height:76px;object-fit:contain;background:var(--bg3)}
+.card .x{
+  position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:7px;border:none;
+  background:transparent;color:var(--dim2);font-size:15px;line-height:1;opacity:0;transition:.15s;
+}
+.card:hover .x{opacity:1}
+
+/* 侧栏控件 */
+.grp{margin-bottom:20px}
+.grp>h3{
+  font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);
+  margin:0 0 9px;font-weight:600;
+}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{
+  flex:1;min-width:56px;padding:8px 6px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg3);font-size:12.5px;color:var(--dim);transition:.15s;
+}
+.seg button.on{background:color-mix(in srgb,var(--acc) 16%,var(--bg3));border-color:var(--acc);color:var(--acc);font-weight:600}
+.row{display:flex;align-items:center;gap:9px;margin-top:9px}
+.row label{font-size:12.5px;color:var(--dim);flex:none;width:44px}
+input[type=number],input[type=text]{
+  width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--line);
+  background:var(--bg3);color:var(--txt);font:inherit;font-size:13px;min-width:0;
+}
+input:focus{outline:none;border-color:var(--acc)}
+input[type=range]{width:100%;accent-color:var(--acc);margin:6px 0 0}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dim);margin-top:10px;cursor:pointer}
+.chk input{accent-color:var(--acc);width:16px;height:16px}
+.pos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:112px;margin-top:4px}
+.pos button{aspect-ratio:1;border-radius:7px;border:1px solid var(--line);background:var(--bg3)}
+.pos button.on{background:var(--acc);border-color:var(--acc)}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tg{width:44px;height:25px;border-radius:99px;background:var(--bg3);border:1px solid var(--line);position:relative;transition:.2s;flex:none}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:99px;background:var(--dim2);transition:.2s}
+.tg.on{background:color-mix(in srgb,var(--acc) 30%,var(--bg3));border-color:var(--acc)}
+.tg.on::after{left:21px;background:var(--acc)}
+.wmbox{display:none;margin-top:12px}
+.wmbox.on{display:block}
+.note{font-size:11.5px;color:var(--dim2);line-height:1.5;margin:8px 0 0}
+
+/* 底栏 */
+.foot{
+  flex:none;display:flex;align-items:center;gap:14px;padding:12px 18px;
+  background:var(--bg2);border-top:1px solid var(--line);
+  padding-bottom:calc(12px + env(safe-area-inset-bottom));
+}
+.stat{font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pwrap{flex:1;height:5px;border-radius:99px;background:var(--bg3);overflow:hidden;min-width:60px}
+.pwrap i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),#ff7a45);transition:width .2s}
+.btn{
+  padding:9px 16px;border-radius:11px;border:1px solid var(--line);background:var(--bg3);
+  font-size:13.5px;font-weight:560;transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn.primary{background:linear-gradient(160deg,var(--acc),var(--acc-d));border-color:transparent;color:#1a1206;font-weight:650}
+.btn.primary:hover{filter:brightness(1.06);color:#1a1206}
+.btn.big{padding:11px 22px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.ghost{background:transparent}
+
+/* 手机 */
+.pbtn{display:none}
+.sheet-head{display:none}
+@media(max-width:900px){
+  .main{grid-template-columns:1fr}
+  .card .x{opacity:1}
+  .side{
+    position:fixed;left:0;right:0;bottom:0;z-index:60;border-left:none;
+    border-radius:20px 20px 0 0;border-top:1px solid var(--line);
+    max-height:76dvh;transform:translateY(102%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 -12px 40px rgba(0,0,0,.4);
+  }
+  .side.open{transform:none}
+  .pbtn{display:inline-block}
+  .sheet-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin:-16px -16px 14px;padding:14px 16px;border-bottom:1px solid var(--line);
+  }
+  .sheet-head span{font-size:15px;font-weight:650}
+  .stage{padding:12px}
+  .foot{gap:10px;padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
+  .stat{font-size:12px}
+  .list{grid-template-columns:1fr}
+  .btn.big{padding:11px 16px;font-size:14px}
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:55;display:none}
+  .mask.on{display:block}
+}
+@media(max-width:900px){.drop{min-height:300px}}
+@media(max-width:560px){
+  .dzbtns{flex-direction:column;width:100%;gap:9px;margin:18px 0 12px}
+  .dzbtns .btn{width:100%;padding:13px 16px}
+  .dz{padding:0 4px}
+  .dzi{width:46px;height:46px}
+  .dz h2{font-size:17px}
+}
+
+/* ---------- 报名照 ---------- */
+.idwrap{display:none;flex:1;min-height:0;flex-direction:column;gap:10px}
+.idwrap.on{display:flex}
+.idprev{
+  flex:1;min-height:330px;position:relative;border:1px solid var(--line);border-radius:var(--r);
+  background:var(--bg2);overflow:hidden;touch-action:none;cursor:grab;
+}
+.idprev.drag{cursor:grabbing}
+#idcv{display:block;width:100%;height:100%}
+.idbar{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap}
+.idbar .btn{padding:7px 12px;font-size:12.5px}
+.idbar .zrow{display:flex;align-items:center;gap:8px;flex:1;min-width:130px}
+.idbar .zrow label{font-size:12px;color:var(--dim2);flex:none}
+.idrep{flex:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:6px}
+.rep{display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.45;padding:7px 10px;
+  border-radius:10px;background:var(--bg2);border:1px solid var(--line);min-width:0}
+.rep i{font-style:normal;flex:none;width:13px;text-align:center}
+.rep.ok i{color:var(--ok)}
+.rep.warn i{color:var(--acc)}
+.rep.bad i{color:var(--err)}
+.rep em{font-style:normal;color:var(--dim2)}
+.idtip{font-size:11.5px;color:var(--dim2);line-height:1.5;margin:0}
+select{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--line);
+  background:var(--bg3);color:var(--txt);font:inherit;font-size:13px}
+.vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.vgrid button{
+  padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg3);
+  position:relative;aspect-ratio:3/4;
+}
+.vgrid button.on{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 40%,transparent)}
+.vgrid img{width:100%;height:100%;object-fit:cover;display:block}
+.vgrid span{
+  position:absolute;left:5px;bottom:5px;font-size:10.5px;color:#e9edf3;
+  background:rgba(0,0,0,.55);padding:1px 6px;border-radius:99px;font-variant-numeric:tabular-nums;
+}
+@media(max-width:560px){ .vgrid{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:900px){
+  .idrep{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .idwrap{min-height:0}
+  .idprev{min-height:220px}
+}
+
+/* 弹窗 */
+dialog{
+  border:none;border-radius:18px;padding:0;background:var(--bg2);color:var(--txt);
+  box-shadow:var(--shadow);max-width:min(520px,92vw);
+}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+#pv{max-width:96vw;max-height:94vh;background:#000;border-radius:14px;overflow:hidden}
+#pv img{display:block;max-width:96vw;max-height:94vh;object-fit:contain;background:#0a0a0c}
+#pv .cap{
+  position:absolute;left:0;right:0;bottom:0;padding:10px 14px;font-size:12.5px;color:#dfe4ea;
+  background:linear-gradient(transparent,rgba(0,0,0,.75));text-align:center;font-variant-numeric:tabular-nums;
+}
+.dlg{padding:22px 22px 18px}
+.dlg h3{margin:0 0 12px;font-size:17px}
+.dlg p{margin:0 0 10px;font-size:13.5px;color:var(--dim);line-height:1.65}
+.dlg .k{color:var(--txt);font-weight:600}
+.dlg .end{display:flex;justify-content:flex-end;margin-top:16px}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--bg3);border:1px solid var(--line);font-size:11.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">图</div>
+      <div class="tt">
+        <h1>拾幅 <em>Sheaf</em></h1>
+        <span>压缩 · 缩放 · 转格式 · 九宫格 · 拼长图 · 图片不上传</span>
+      </div>
+    </div>
+    <div class="tools">
+      <button class="ic" id="btnTheme" title="切换深浅色">◐</button>
+      <button class="ic" id="btnAbout" title="关于">i</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage" id="stage">
+      <div class="modes" id="modes">
+        <button data-m="idphoto" class="on">报名照</button>
+        <button data-m="compress">压缩 / 转换</button>
+        <button data-m="grid">九宫格切图</button>
+        <button data-m="stitch">拼长图</button>
+      </div>
+      <div class="drop" id="drop">
+        <div class="dz">
+          <svg class="dzi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="16" rx="3"/>
+            <circle cx="8.6" cy="9.6" r="1.7"/>
+            <path d="M3.4 17.2l4.9-4.6a1.7 1.7 0 0 1 2.3 0l3.4 3.2"/>
+            <path d="M13.6 15.2l2.1-2a1.7 1.7 0 0 1 2.3 0l2.6 2.4"/>
+          </svg>
+          <h2 id="dzH">把图片拖进来</h2>
+          <p id="dzP">JPG · PNG · WebP · GIF · BMP，一次几百张也行</p>
+          <div class="dzbtns">
+            <button class="btn primary big" id="btnPick">选择图片</button>
+            <button class="btn big" id="btnDir">选择文件夹</button>
+          </div>
+          <p class="hint" id="dzHint">也可以按 Ctrl+V 粘贴截图；全程在本机处理</p>
+        </div>
+      </div>
+      <div class="idwrap" id="idwrap">
+        <div class="idprev" id="idprev"><canvas id="idcv"></canvas></div>
+        <div class="idbar">
+          <button class="btn" id="idAuto">自动对齐</button>
+          <div class="zrow">
+            <label>缩放</label>
+            <input type="range" id="idZoom" min="100" max="800" value="100">
+          </div>
+          <button class="btn" id="idReset">重置</button>
+          <button class="btn" id="idShowOut" style="display:none">看成品</button>
+        </div>
+        <p class="idtip" id="idTip">拖动照片调位置，滚轮或双指缩放。三条参考线依次是头顶、眼睛、下巴，对齐它们就是标准构图。</p>
+        <div class="idrep" id="idrep"></div>
+      </div>
+      <div class="list" id="list"></div>
+    </div>
+
+    <aside class="side" id="side">
+      <div class="sheet-head">
+        <span>参数</span>
+        <button class="btn" id="btnPanelDone">完成</button>
+      </div>
+      <div class="grp" data-mode="compress grid stitch">
+        <h3>输出格式</h3>
+        <div class="seg" id="segFmt">
+          <button data-v="keep" class="on">保持原样</button>
+          <button data-v="jpg">JPG</button>
+          <button data-v="png">PNG</button>
+          <button data-v="webp">WebP</button>
+        </div>
+        <div id="qWrap">
+          <div class="row">
+            <label>质量</label>
+            <input type="range" id="q" min="40" max="100" value="82">
+            <span id="qv" style="width:38px;text-align:right;font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums">82</span>
+          </div>
+          <p class="note">JPG / WebP 有效。82 一般看不出来，压完体积约降一半以上。</p>
+        </div>
+      </div>
+
+      <div class="grp" data-mode="grid">
+        <h3>切分方式</h3>
+        <div class="seg" id="segGrid">
+          <button data-v="3" class="on">3 × 3</button>
+          <button data-v="2">2 × 2</button>
+          <button data-v="4">4 × 4</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="gridCrop" checked>先裁成正方形</label>
+        <p class="note">输出名形如 图-1-1.jpg，按行优先编号，直接按顺序上传就是完整一张。</p>
+      </div>
+
+      <div class="grp" data-mode="compress">
+        <h3>尺寸</h3>
+        <div class="seg" id="segSize">
+          <button data-v="none" class="on">不改</button>
+          <button data-v="long">长边</button>
+          <button data-v="width">宽</button>
+          <button data-v="percent">百分比</button>
+        </div>
+        <div class="row" id="rowNum" style="display:none">
+          <label id="numLab">长边</label>
+          <input type="number" id="num" min="1" value="1920">
+          <span id="unit" style="font-size:12.5px;color:var(--dim2)">px</span>
+        </div>
+        <label class="chk"><input type="checkbox" id="up">允许放大（默认只缩不放）</label>
+      </div>
+
+      <div class="grp" data-mode="stitch">
+        <h3>拼接</h3>
+        <div class="row">
+          <label>统一宽</label>
+          <input type="number" id="stWidth" value="1080" min="100" max="8000">
+          <span style="font-size:12.5px;color:var(--dim2)">px</span>
+        </div>
+        <div class="row">
+          <label>间距</label>
+          <input type="number" id="stGap" value="0" min="0" max="400">
+          <span style="font-size:12.5px;color:var(--dim2)">px</span>
+        </div>
+        <div class="row">
+          <label>底色</label>
+          <input type="color" id="stBg" value="#ffffff" style="width:34px;height:32px;padding:2px;border-radius:8px;border:1px solid var(--line);background:var(--bg3)">
+        </div>
+        <p class="note">按列表从上往下拼，宽度统一、高度自适应；太长的会自动等比缩小到浏览器上限内。</p>
+      </div>
+
+      <div class="grp" data-mode="compress stitch">
+        <h3>水印</h3>
+        <div class="sw">
+          <span style="font-size:13px;color:var(--dim)">文字水印</span>
+          <button class="tg" id="tgWm" aria-label="水印开关"></button>
+        </div>
+        <div class="wmbox" id="wmBox">
+          <div class="row"><input type="text" id="wmText" placeholder="输入水印文字" maxlength="40"></div>
+          <div class="row">
+            <label>字号</label>
+            <input type="number" id="wmSize" min="8" max="400" value="36">
+            <label style="width:auto">颜色</label>
+            <input type="color" id="wmColor" value="#ffffff" style="width:34px;height:32px;padding:2px;border-radius:8px;border:1px solid var(--line);background:var(--bg3)">
+          </div>
+          <div class="row">
+            <label>浓淡</label>
+            <input type="range" id="wmAlpha" min="10" max="100" value="65">
+            <span id="wmAv" style="width:38px;text-align:right;font-size:12.5px;color:var(--dim)">65%</span>
+          </div>
+          <div class="row" style="align-items:flex-start">
+            <label style="padding-top:6px">位置</label>
+            <div class="pos" id="pos">
+              <button data-p="tl"></button><button data-p="tc"></button><button data-p="tr"></button>
+              <button data-p="ml"></button><button data-p="mc"></button><button data-p="mr"></button>
+              <button data-p="bl"></button><button data-p="bc"></button><button data-p="br" class="on"></button>
+            </div>
+          </div>
+          <label class="chk"><input type="checkbox" id="wmTile">平铺整张图</label>
+        </div>
+      </div>
+
+      <div class="grp" data-mode="compress grid">
+        <h3>其他</h3>
+        <label class="chk"><input type="checkbox" id="stripExif" checked>清除拍摄信息（GPS、机型、时间）</label>
+        <p class="note">重新编码时元数据自然丢弃，默认就是干净的。</p>
+        <div class="row" style="margin-top:14px">
+          <label>重命名</label>
+          <div class="seg" style="flex:1" id="segName">
+            <button data-v="keep" class="on">原名</button>
+            <button data-v="seq">加序号</button>
+            <button data-v="prefix">加前缀</button>
+          </div>
+        </div>
+        <input type="text" id="prefix" placeholder="前缀，例如 hz-" style="display:none;margin-top:8px">
+      </div>
+
+      <div class="grp" data-mode="idphoto">
+        <h3>先看这一条</h3>
+        <p class="note">只接受<b>正面照</b>：正对镜头、双肩放平、露耳露眉。侧身、凑近自拍、美颜修过的都不合规——本软件<b>不生成肩膀和衣服</b>，只做裁剪、居中、换底色、压体积，并告诉你这张到底能不能用。</p>
+        <p class="note" style="margin:6px 0 0">拍法：相机与眼睛同高，退后 1.5–2 米，站在纯色墙前，让别人帮你拍；手机别自己举着。</p>
+      </div>
+
+      <div class="grp" data-mode="idphoto">
+        <h3>规格</h3>
+        <select id="idSpec"></select>
+        <p class="note" id="idSpecNote"></p>
+      </div>
+
+      <div class="grp" data-mode="idphoto">
+        <h3>底色</h3>
+        <div class="seg" id="segBg">
+          <button data-v="#ffffff" class="on">白底</button>
+          <button data-v="#438edb">蓝底</button>
+          <button data-v="#ff0000">红底</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="idRemoveBg" checked>把原来的背景换掉</label>
+        <div id="idTolWrap">
+          <div class="row" style="align-items:center">
+            <label style="width:auto">容差</label>
+            <input type="range" id="idTol" min="6" max="44" value="18">
+            <span id="idTolV" style="width:26px;text-align:right;font-size:12px;color:var(--dim2)">18</span>
+          </div>
+        </div>
+        <p class="note">从画框四边向内抠除相连的近似色，适合纯色墙面。背景杂乱会留下边缘，把容差调大一点。</p>
+      </div>
+
+      <div class="grp" data-mode="idphoto">
+        <h3>输出</h3>
+        <div class="row">
+          <label style="width:auto">体积上限</label>
+          <input type="number" id="idKB" min="0" max="2000" value="10">
+          <span style="font-size:12.5px;color:var(--dim2)">KB</span>
+        </div>
+        <p class="note">填 0 表示不限制。填了就自动降质量，压到限制以内。</p>
+        <label class="chk"><input type="checkbox" id="idGuides" checked>显示构图参考线</label>
+      </div>
+
+      <div class="grp" style="margin-bottom:0">
+        <button class="btn" id="btnClear" style="width:100%">清空列表</button>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="foot">
+    <button class="btn ghost pbtn" id="btnPanel">参数</button>
+    <div class="stat" id="stat">还没有图片</div>
+    <div class="pwrap"><i id="bar"></i></div>
+    <button class="btn primary big" id="btnRun" disabled>开始处理</button>
+    <button class="btn primary big" id="btnZip" style="display:none">下载全部</button>
+  </footer>
+</div>
+
+<div class="mask" id="mask"></div>
+<input type="file" id="fi" accept="image/*,video/*" multiple hidden>
+<input type="file" id="fd" webkitdirectory multiple hidden>
+
+<dialog id="vpick">
+  <div class="dlg" style="max-width:min(760px,94vw)">
+    <h3 style="margin-bottom:6px">从视频里挑一帧</h3>
+    <p style="margin:0 0 12px;font-size:12.5px;color:var(--dim)">
+      已按清晰度和正脸程度筛出 6 帧，选一张最像证件照的（闭嘴、平视）。
+    </p>
+    <div id="vgrid" class="vgrid"></div>
+    <p class="note" id="vnote"></p>
+    <div class="end"><button class="btn" id="vCancel">取消</button></div>
+  </div>
+</dialog>
+
+<dialog id="vhelp">
+  <div class="dlg" style="max-width:min(620px,94vw)">
+    <h3 style="margin-bottom:8px">这条视频这台电脑放不了</h3>
+    <p id="vhelpWhy" style="margin:0 0 10px;font-size:13px;line-height:1.75"></p>
+    <p style="margin:0 0 6px;font-size:13px" class="k">三个办法，挑一个：</p>
+    <p style="margin:0 0 6px;font-size:13px;line-height:1.95">
+      <b>1.</b> 手机「相机 → 设置 → 视频编码」改成 <b>H.264</b>，以后拍的直接能用（一次就好）<br>
+      <b>2.</b> 微软商店搜「HEVC 视频扩展」装上，重开本软件即可<br>
+      <b>3.</b> 报名照只要一张脸，<b>同一场景直接拍张照片</b>最快，也比视频抽帧清楚
+    </p>
+    <p class="note" id="vhelpFile"></p>
+    <div class="end"><button class="btn primary" id="vhelpOk">知道了</button></div>
+  </div>
+</dialog>
+
+<dialog id="pv">
+  <img id="pvimg" alt="">
+  <div class="cap" id="pvcap"></div>
+</dialog>
+
+<dialog id="dlg">
+  <div class="dlg">
+    <h3>关于 拾幅</h3>
+    <p><span class="k">全部在本机完成。</span>图片只在浏览器内存里解码、重采样、重新编码，一个字节都不会上传到任何服务器。断网也能用。</p>
+    <p><span class="k">为什么快：</span>走浏览器的原生图像管线，不经过任何上传下载往返；一次几百张也能排队处理。</p>
+    <p><span class="k">支持的输入：</span>JPG / PNG / WebP / GIF / BMP / AVIF（视浏览器而定）。HEIC 需先在系统里转成 JPG。</p>
+    <p><span class="k">关于拍摄信息：</span>重新编码时 EXIF 会被丢弃，GPS 坐标、手机型号、拍摄时间都不会带出去，发图更安全。</p>
+    <p style="margin-bottom:0"><span class="badge" id="verBadge">v1.0.0</span> &nbsp;© 永远的兰兰</p>
+    <div class="end"><button class="btn" id="dlgOk">知道了</button></div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+const CFG = {
+  mode: "idphoto",
+  fmt: "keep",
+  quality: 0.82,
+  resize: "none",
+  longEdge: 1920,
+  width: 1920,
+  percent: 50,
+  upscale: false,
+  wm: { on: false, text: "", size: 36, color: "#ffffff", alpha: 0.65, pos: "br", tile: false },
+  name: "keep",
+  prefix: "",
+  grid: { n: 3, crop: true },
+  stitch: { width: 1080, gap: 0, bg: "#ffffff" }
+};
+
+let ITEMS = [];      // {id,file,name,size,w,h,url,outs:[],fail}
+let BUSY = false;
+let SEQ = 0;
+
+/* ---------------- 主题 ---------------- */
+(function initTheme(){
+  let t = null;
+  try { t = localStorage.getItem("pic.theme"); } catch(e){}
+  if(!t) t = (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+})();
+$("#btnTheme").onclick = () => {
+  const cur = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = cur;
+  try { localStorage.setItem("pic.theme", cur); } catch(e){}
+};
+
+/* ---------------- 工具 ---------------- */
+function fmtBytes(n){
+  if(n < 1024) return n + " B";
+  if(n < 1024*1024) return (n/1024).toFixed(0) + " KB";
+  return (n/1024/1024).toFixed(n < 10*1024*1024 ? 2 : 1) + " MB";
+}
+const isImg = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(f.name);
+
+/* ---------------- 载入 ---------------- */
+function addFiles(files){
+  const ok = [];
+  let heic = 0, vidFile = null;
+  for(const f of files){
+    if(isVid(f)){ if(!vidFile) vidFile = f; continue; }
+    if(!isImg(f)) continue;
+    if(/\.hei[cf]$/i.test(f.name)){ heic++; continue; }
+    ok.push(f);
+  }
+  if(vidFile && CFG.mode === "idphoto"){ idVideoFile(vidFile); return; }
+  if(vidFile && !ok.length){ toast("视频取帧只在「报名照」里用，先切到那个模式"); return; }
+  if(heic) toast(heic + " 张 HEIC 跳过，先在系统里转成 JPG");
+  if(!ok.length){ toast("没有可用的图片"); return; }
+  if(CFG.mode === "idphoto"){
+    for(const old of ITEMS) URL.revokeObjectURL(old.url);
+    ITEMS = [];
+    if(ok.length > 1) toast("报名照一次处理一张，已取第一张");
+    const f = ok[0];
+    const one = { id: ++SEQ, file: f, name: f.name, size: f.size, w: 0, h: 0,
+                  url: URL.createObjectURL(f), outs: null, fail: null };
+    ITEMS.push(one);
+    idLoad(one);
+    return;
+  }
+  for(const f of ok){
+    const it = {
+      id: ++SEQ, file: f, name: f.name, size: f.size,
+      w: 0, h: 0, url: URL.createObjectURL(f), outs: null, fail: null
+    };
+    ITEMS.push(it);
+  }
+  render(); probeSizes();
+}
+
+function probeSizes(){
+  ITEMS.forEach(it => {
+    if(it.w || !it.url) return;
+    const im = new Image();
+    im.onload = () => { it.w = im.naturalWidth; it.h = im.naturalHeight; render(); };
+    im.src = it.url;
+  });
+}
+
+function toast(msg){
+  const d = document.createElement("div");
+  d.textContent = msg;
+  d.style.cssText = "position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#2a3038;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:999;box-shadow:0 8px 24px rgba(0,0,0,.4)";
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1800);
+}
+
+/* ---------------- 渲染 ---------------- */
+function buildCard(it){
+  const outs = it.outs || [];
+  const el = document.createElement("div");
+  el.className = "card" + (outs.length ? " done" : "") + (it.fail ? " bad" : "");
+  el.dataset.id = it.id;
+
+  const img = document.createElement("img");
+  img.className = "th";
+  img.loading = "lazy";
+  img.src = outs.length === 1 ? outs[0].url : it.url;
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const n = document.createElement("div");
+  n.className = "n"; n.textContent = it.name;
+  const s = document.createElement("div");
+  s.className = "s";
+  s.textContent = (it.w ? it.w + "×" + it.h + " · " : "") + fmtBytes(it.size);
+  meta.appendChild(n); meta.appendChild(s);
+
+  if(outs.length){
+    const r = document.createElement("div");
+    r.className = "r";
+    const tot = outs.reduce((a, b) => a + b.size, 0);
+    const d = it.size > 0 ? Math.round((1 - tot / it.size) * 100) : 0;
+    if(outs.length === 1){
+      r.innerHTML = "→ " + outs[0].w + "×" + outs[0].h + " · " + fmtBytes(tot) +
+        ' <b class="' + (d < 0 ? "up" : "") + '">' + (d >= 0 ? "-" : "+") + Math.abs(d) + "%</b>";
+    } else {
+      r.innerHTML = "→ " + outs.length + " 张 · 每张 " + outs[0].w + "×" + outs[0].h +
+        " · 合计 " + fmtBytes(tot);
+    }
+    meta.appendChild(r);
+  } else if(it.fail){
+    const r = document.createElement("div");
+    r.className = "r"; r.style.color = "var(--err)";
+    r.textContent = it.fail;
+    meta.appendChild(r);
+  }
+
+  const x = document.createElement("button");
+  x.className = "x"; x.textContent = "×"; x.title = "移除";
+  x.onclick = e => {
+    e.stopPropagation();
+    const i = ITEMS.indexOf(it);
+    if(i >= 0) ITEMS.splice(i, 1);
+    URL.revokeObjectURL(it.url);
+    if(it.outs) it.outs.forEach(o => URL.revokeObjectURL(o.url));
+    render();
+  };
+
+  img.onclick = e => {
+    e.stopPropagation();
+    const src = outs.length ? outs[0].url : it.url;
+    const cap = outs.length
+      ? (outs.length > 1 ? "第 1 张 / 共 " + outs.length + " 张 · " + outs[0].w + "×" + outs[0].h
+                         : it.name + " → " + outs[0].w + "×" + outs[0].h + " · " + fmtBytes(outs[0].size))
+      : it.name + "（原图）";
+    showPreview(src, cap);
+  };
+
+  el.appendChild(img); el.appendChild(meta); el.appendChild(x);
+  if(outs.length){
+    el.style.cursor = "pointer";
+    el.title = outs.length === 1 ? "点击下载这张" : "点击下载这 " + outs.length + " 张";
+    el.onclick = () => {
+      if(outs.length === 1) saveBlob(outs[0].blob, outs[0].name);
+      else downloadSet(outs, it.name.replace(/\.[^.]+$/, ""));
+    };
+  }
+  return el;
+}
+
+function syncIdUI(){
+  const isId = CFG.mode === "idphoto";
+  $("#btnDir").style.display = isId ? "none" : "";
+  $("#btnPick").textContent = isId ? "选择照片" : "选择图片";
+  $("#dzH").textContent = isId ? "把证件照原图放进来" : "把图片拖进来";
+  $("#dzP").textContent = isId
+    ? "手机竖拍、自拍、半身照、甚至一段自拍视频都行"
+    : "JPG · PNG · WebP · GIF · BMP，一次几百张也行";
+  $("#dzHint").textContent = isId
+    ? "视频会抽帧让你挑一张；人脸和视频都只在本机处理，不会上传"
+    : "也可以按 Ctrl+V 粘贴截图；全程在本机处理";
+}
+
+function render(){
+  const isId = CFG.mode === "idphoto";
+  const list = $("#list");
+  list.innerHTML = "";
+  const has = isId ? !!ID.it : ITEMS.length > 0;
+  $("#drop").classList.toggle("hide", has);
+  $("#idwrap").classList.toggle("on", isId && has);
+  syncIdUI();
+
+  if(isId){
+    const sp = ID.spec;
+    const parts = [sp.name, sp.w + "×" + sp.h + " px"];
+    if(ID.out) parts.push(fmtBytes(ID.out.size));
+    $("#stat").textContent = ID.it ? parts.join(" · ") : "还没有照片";
+    $("#btnRun").disabled = !ID.it || BUSY;
+    $("#btnRun").textContent = BUSY ? "处理中…" : (ID.out ? "重新生成" : "生成照片");
+    const bz = $("#btnZip");
+    bz.textContent = "下载照片";
+    bz.style.display = (ID.out && !BUSY) ? "" : "none";
+    document.querySelector(".pwrap").style.display = ID.it ? "" : "none";
+    return;
+  }
+
+  if(CFG.mode === "stitch" && STITCH) list.appendChild(buildResultCard(STITCH));
+  for(const it of ITEMS) list.appendChild(buildCard(it));
+
+  const total = ITEMS.reduce((a, b) => a + b.size, 0);
+  const done = CFG.mode === "stitch"
+    ? (STITCH ? 1 : 0)
+    : ITEMS.filter(i => i.outs && i.outs.length).length;
+  const parts = [ITEMS.length + " 张", fmtBytes(total)];
+  if(CFG.mode === "stitch"){ if(STITCH) parts.push("长图已生成"); }
+  else if(done) parts.push("已完成 " + done);
+  $("#stat").textContent = ITEMS.length ? parts.join(" · ") : "还没有图片";
+
+  $("#btnRun").disabled = !ITEMS.length || BUSY;
+  $("#btnRun").textContent = BUSY ? "处理中…" : (done ? "重新处理" : "开始处理");
+  const btnZip = $("#btnZip");
+  btnZip.textContent = CFG.mode === "stitch" ? "下载长图" : "下载全部";
+  btnZip.style.display = done && !BUSY ? "" : "none";
+  document.querySelector(".pwrap").style.display = ITEMS.length ? "" : "none";
+}
+
+function refreshCard(it){
+  const old = document.querySelector('.card[data-id="' + it.id + '"]');
+  if(!old) return;
+  old.replaceWith(buildCard(it));
+}
+
+/* ---------------- 解码 ---------------- */
+async function decode(file){
+  if("createImageBitmap" in window){
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch(e){ /* 部分浏览器不支持该选项，降级 */ }
+    try { return await createImageBitmap(file); } catch(e){}
+  }
+  return await new Promise((res, rej) => {
+    const u = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => { URL.revokeObjectURL(u); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error("无法解码")); };
+    im.src = u;
+  });
+}
+
+/* ---------------- 尺寸 ---------------- */
+function targetSize(w, h){
+  const c = CFG;
+  if(c.resize === "none") return [w, h];
+  let tw = w, th = h;
+  if(c.resize === "long"){
+    const m = Math.max(w, h);
+    if(m === 0) return [w, h];
+    const k = c.longEdge / m;
+    if(!c.upscale && k > 1) return [w, h];
+    tw = w * k; th = h * k;
+  } else if(c.resize === "width"){
+    const k = c.width / w;
+    if(!c.upscale && k > 1) return [w, h];
+    tw = w * k; th = h * k;
+  } else {
+    const k = c.percent / 100;
+    if(!c.upscale && k > 1) return [w, h];
+    tw = w * k; th = h * k;
+  }
+  tw = Math.max(1, Math.round(tw));
+  th = Math.max(1, Math.round(th));
+  const CAP = 20000;
+  if(tw > CAP || th > CAP){
+    const k = CAP / Math.max(tw, th);
+    tw = Math.max(1, Math.round(tw * k));
+    th = Math.max(1, Math.round(th * k));
+  }
+  return [tw, th];
+}
+
+function outType(file){
+  if(CFG.fmt === "jpg") return "image/jpeg";
+  if(CFG.fmt === "png") return "image/png";
+  if(CFG.fmt === "webp") return "image/webp";
+  const t = (file.type || "").toLowerCase();
+  if(t === "image/png" || /\.png$/i.test(file.name)) return "image/png";
+  if(t === "image/webp" || /\.webp$/i.test(file.name)) return "image/webp";
+  return "image/jpeg";
+}
+
+function outName(it, idx, type){
+  const base = it.name.replace(/\.[^.]+$/, "");
+  const ext = type === "image/jpeg" ? "jpg" : type === "image/png" ? "png" : "webp";
+  if(CFG.name === "seq") return String(idx + 1).padStart(2, "0") + "-" + base + "." + ext;
+  if(CFG.name === "prefix") return (CFG.prefix || "") + base + "." + ext;
+  return base + "." + ext;
+}
+
+/* ---------------- 水印 ---------------- */
+function drawWatermark(ctx, W, H){
+  const wm = CFG.wm;
+  if(!wm.on || !wm.text) return;
+  const fs = Math.max(6, Math.round(wm.size * Math.min(W, H) / 1000));
+  ctx.save();
+  ctx.globalAlpha = wm.alpha;
+  ctx.fillStyle = wm.color;
+  ctx.font = '600 ' + fs + 'px system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif';
+
+  if(wm.tile){
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-Math.PI / 6);
+    const m = ctx.measureText(wm.text).width;
+    const stepX = m + Math.max(60, fs * 2.4);
+    const stepY = Math.max(60, fs * 3.2);
+    const R = Math.hypot(W, H) / 2 + stepX;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for(let y = -R; y <= R; y += stepY){
+      for(let x = -R; x <= R; x += stepX){
+        ctx.fillText(wm.text, x, y);
+      }
+    }
+    ctx.restore();
+    return;
+  }
+
+  const pad = Math.round(Math.min(W, H) * 0.028);
+  const g = wm.pos;
+  ctx.textAlign = g[1] === "l" ? "left" : g[1] === "r" ? "right" : "center";
+  ctx.textBaseline = g[0] === "t" ? "top" : g[0] === "b" ? "bottom" : "middle";
+  const x = g[1] === "l" ? pad : g[1] === "r" ? W - pad : W / 2;
+  const y = g[0] === "t" ? pad : g[0] === "b" ? H - pad : H / 2;
+
+  // 轻微描边保证浅色图上仍可读
+  ctx.lineWidth = Math.max(1, fs * 0.055);
+  ctx.strokeStyle = "rgba(0,0,0,0.45)";
+  ctx.strokeText(wm.text, x, y);
+  ctx.fillText(wm.text, x, y);
+  ctx.restore();
+}
+
+/* ---------------- 单张处理 ---------------- */
+function canEncode(type){
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 2;
+    const u = c.toDataURL(type);
+    return u.indexOf(type) === 0;
+  } catch(e){ return false; }
+}
+
+function pickType(fallback){
+  let t = fallback || "image/jpeg";
+  if(CFG.fmt === "jpg") t = "image/jpeg";
+  else if(CFG.fmt === "png") t = "image/png";
+  else if(CFG.fmt === "webp") t = "image/webp";
+  if(t === "image/webp" && !canEncode("image/webp")) t = "image/jpeg";
+  return t;
+}
+
+function encType(type){
+  return type === "image/jpeg" ? "jpg" : type === "image/png" ? "png" : "webp";
+}
+
+function encodeCanvas(cv, type){
+  const q = (type === "image/png") ? undefined : CFG.quality;
+  return new Promise((res, rej) => {
+    cv.toBlob(b => b ? res(b) : rej(new Error("编码失败")), type, q);
+  });
+}
+
+/* 压缩 / 转格式 / 缩放 / 水印 —— 一进一出 */
+async function compressOne(it){
+  const bmp = await decode(it.file);
+  const srcW = bmp.width || bmp.naturalWidth;
+  const srcH = bmp.height || bmp.naturalHeight;
+  const [tw, th] = targetSize(srcW, srcH);
+
+  const cv = document.createElement("canvas");
+  cv.width = tw; cv.height = th;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  const type = pickType(outType(it.file));
+  if(type === "image/jpeg"){ ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, tw, th); }
+
+  ctx.drawImage(bmp, 0, 0, tw, th);
+  drawWatermark(ctx, tw, th);
+  if(bmp.close) bmp.close();
+
+  const blob = await encodeCanvas(cv, type);
+  cv.width = cv.height = 0;
+  return {
+    blob, type, w: tw, h: th, size: blob.size,
+    name: outName(it, ITEMS.indexOf(it), type),
+    url: URL.createObjectURL(blob)
+  };
+}
+
+/* 九宫格切图 —— 一进多出 */
+async function gridOne(it){
+  const bmp = await decode(it.file);
+  const W = bmp.width || bmp.naturalWidth;
+  const H = bmp.height || bmp.naturalHeight;
+  const n = CFG.grid.n;
+
+  let sx = 0, sy = 0, sw = W, sh = H;
+  if(CFG.grid.crop){
+    const m = Math.min(W, H);
+    sx = (W - m) / 2; sy = (H - m) / 2; sw = m; sh = m;
+  }
+  const cw = sw / n, ch = sh / n;
+  const tw = Math.max(1, Math.round(cw));
+  const th = Math.max(1, Math.round(ch));
+
+  const type = pickType(outType(it.file));
+  const ext = encType(type);
+  const base = it.name.replace(/\.[^.]+$/, "");
+  const outs = [];
+
+  for(let r = 0; r < n; r++){
+    for(let c = 0; c < n; c++){
+      const cv = document.createElement("canvas");
+      cv.width = tw; cv.height = th;
+      const ctx = cv.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      if(type === "image/jpeg"){ ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, tw, th); }
+      ctx.drawImage(bmp, sx + c * cw, sy + r * ch, cw, ch, 0, 0, tw, th);
+      const blob = await encodeCanvas(cv, type);
+      cv.width = cv.height = 0;
+      outs.push({
+        blob, type, w: tw, h: th, size: blob.size,
+        name: base + "-" + (r + 1) + "-" + (c + 1) + "." + ext,
+        url: URL.createObjectURL(blob)
+      });
+    }
+  }
+  if(bmp.close) bmp.close();
+  return outs;
+}
+
+/* 拼长图 —— 多进一出 */
+async function stitchAll(items){
+  const W = Math.max(64, Math.min(8000, CFG.stitch.width | 0 || 1080));
+  const gap = Math.max(0, Math.min(400, CFG.stitch.gap | 0));
+  const bg = CFG.stitch.bg || "#ffffff";
+  const rows = [];
+  let totalH = 0;
+
+  for(const it of items){
+    const bmp = await decode(it.file);
+    const bw = bmp.width || bmp.naturalWidth;
+    const bh = bmp.height || bmp.naturalHeight;
+    const h = Math.max(1, Math.round(bh * W / bw));
+    rows.push({ bmp, h });
+    totalH += h;
+    await new Promise(r => setTimeout(r, 0));
+  }
+  totalH += gap * Math.max(0, rows.length - 1);
+
+  const CAP = 32000;
+  const scale = totalH > CAP ? CAP / totalH : 1;
+  const outW = Math.max(1, Math.round(W * scale));
+  const outH = Math.max(1, Math.round(totalH * scale));
+
+  const cv = document.createElement("canvas");
+  cv.width = outW; cv.height = outH;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, outW, outH);
+
+  let y = 0;
+  for(const r of rows){
+    const hh = Math.max(1, Math.round(r.h * scale));
+    ctx.drawImage(r.bmp, 0, Math.round(y), outW, hh);
+    if(r.bmp.close) r.bmp.close();
+    y += hh + Math.round(gap * scale);
+  }
+
+  const type = pickType("image/jpeg");
+  drawWatermark(ctx, outW, outH);
+  const blob = await encodeCanvas(cv, type);
+  cv.width = cv.height = 0;
+  const stamp = new Date().toISOString().slice(0, 10);
+  return {
+    blob, type, w: outW, h: outH, size: blob.size,
+    name: (CFG.prefix || "") + "长图-" + stamp + "." + encType(type),
+    url: URL.createObjectURL(blob)
+  };
+}
+
+async function processOne(it){
+  if(CFG.mode === "grid") return await gridOne(it);
+  return [await compressOne(it)];
+}
+
+/* ---------------- 批处理 ---------------- */
+let STITCH = null;   // 拼长图的结果（多进一出，不挂在单张上）
+
+async function run(){
+  if(CFG.mode === "idphoto"){ await idGo(); return; }
+  if(BUSY || !ITEMS.length) return;
+  BUSY = true;
+  $("#btnRun").disabled = true;
+  $("#btnRun").textContent = "处理中…";
+  $("#btnZip").style.display = "none";
+  $("#bar").style.width = "0%";
+
+  // 重新处理：清掉上一轮结果
+  for(const it of ITEMS){
+    if(it.outs){ it.outs.forEach(o => URL.revokeObjectURL(o.url)); it.outs = null; }
+    it.fail = null;
+  }
+  if(STITCH){ URL.revokeObjectURL(STITCH.url); STITCH = null; }
+
+  if(CFG.mode === "stitch"){
+    try {
+      $("#bar").style.width = "40%";
+      STITCH = await stitchAll(ITEMS);
+      $("#bar").style.width = "100%";
+    } catch(e){
+      toast("拼接失败：" + ((e && e.message) || e));
+    }
+  } else {
+    let n = 0;
+    for(const it of ITEMS){
+      const card = document.querySelector('.card[data-id="' + it.id + '"]');
+      if(card) card.classList.add("proc");
+      try {
+        it.outs = await processOne(it);
+      } catch(e){
+        it.fail = (e && e.message) ? e.message : "处理失败";
+      }
+      n++;
+      $("#bar").style.width = Math.round(n / ITEMS.length * 100) + "%";
+      refreshCard(it);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  BUSY = false;
+  $("#bar").style.width = "100%";
+  render();
+  if(CFG.mode === "stitch"){
+    if(STITCH) toast("长图好了：" + STITCH.w + "×" + STITCH.h);
+    return;
+  }
+  const okN = ITEMS.filter(i => i.outs && i.outs.length).length;
+  if(!okN) toast("没有成功的，检查一下文件");
+  else if(CFG.mode === "grid") toast("切好 " + okN + " 组，点卡片下载这一组的图");
+  else toast("完成 " + okN + " 张，点卡片可单张下载");
+}
+
+/* ---------------- 保存 / 打包 ---------------- */
+function saveBlob(blob, name){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for(let i = 0; i < 256; i++){
+    let c = i;
+    for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(u8){
+  let c = 0xFFFFFFFF;
+  for(let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function zipStore(entries){
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const d = new Date();
+  const dt = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const dd = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+
+  for(const e of entries){
+    const nameU8 = enc.encode(e.name);
+    const data = new Uint8Array(await e.blob.arrayBuffer());
+    const crc = crc32(data);
+
+    const lh = new Uint8Array(30 + nameU8.length);
+    const v = new DataView(lh.buffer);
+    v.setUint32(0, 0x04034b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint16(6, 0x0800, true);
+    v.setUint16(8, 0, true);
+    v.setUint16(10, dt, true);
+    v.setUint16(12, dd, true);
+    v.setUint32(14, crc, true);
+    v.setUint32(18, data.length, true);
+    v.setUint32(22, data.length, true);
+    v.setUint16(26, nameU8.length, true);
+    v.setUint16(28, 0, true);
+    lh.set(nameU8, 30);
+    parts.push(lh, data);
+
+    const ch = new Uint8Array(46 + nameU8.length);
+    const cv = new DataView(ch.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, dt, true);
+    cv.setUint16(14, dd, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameU8.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset, true);
+    ch.set(nameU8, 46);
+    central.push(ch);
+
+    offset += lh.length + data.length;
+  }
+
+  let csize = 0;
+  for(const c of central) csize += c.length;
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, csize, true);
+  ev.setUint32(16, offset, true);
+
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}
+
+/* 把一组输出打包成一个 zip（重名自动加 -2） */
+function dedupe(list){
+  const used = new Set();
+  return list.map(o => {
+    let nm = o.name;
+    if(used.has(nm)){
+      let k = 2;
+      const m = nm.match(/^(.*?)(\.[^.]+)$/);
+      const stem = m ? m[1] : nm, ext = m ? m[2] : "";
+      while(used.has(stem + "-" + k + ext)) k++;
+      nm = stem + "-" + k + ext;
+    }
+    used.add(nm);
+    return { name: nm, blob: o.blob };
+  });
+}
+
+async function downloadSet(outs, baseName){
+  if(outs.length === 1){ saveBlob(outs[0].blob, outs[0].name); return; }
+  const zip = await zipStore(dedupe(outs));
+  saveBlob(zip, (baseName || "图片") + ".zip");
+}
+
+async function downloadAll(){
+  if(CFG.mode === "idphoto"){
+    if(ID.out) saveBlob(ID.out.blob, ID.out.name);
+    return;
+  }
+  if(CFG.mode === "stitch"){
+    if(STITCH) saveBlob(STITCH.blob, STITCH.name);
+    return;
+  }
+  const all = [];
+  for(const it of ITEMS) if(it.outs) all.push(...it.outs);
+  if(!all.length) return;
+  if(all.length === 1){ saveBlob(all[0].blob, all[0].name); return; }
+  const btn = $("#btnZip");
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "打包中…";
+  try {
+    const zip = await zipStore(dedupe(all));
+    const tag = CFG.mode === "grid" ? "九宫格" : "图片";
+    saveBlob(zip, tag + "-" + new Date().toISOString().slice(0, 10) + ".zip");
+  } catch(e){
+    toast("打包失败：" + (e.message || e));
+  }
+  btn.disabled = false; btn.textContent = label;
+}
+
+/* 拼长图的结果卡（宽卡片，占满一行） */
+function buildResultCard(o){
+  const el = document.createElement("div");
+  el.className = "card done wide";
+  const img = document.createElement("img");
+  img.className = "th wide-th";
+  img.src = o.url;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const n = document.createElement("div");
+  n.className = "n"; n.textContent = o.name;
+  const s = document.createElement("div");
+  s.className = "s";
+  s.textContent = o.w + "×" + o.h + " · " + fmtBytes(o.size);
+  const r = document.createElement("div");
+  r.className = "r"; r.textContent = "点击下载这张长图";
+  meta.appendChild(n); meta.appendChild(s); meta.appendChild(r);
+  el.appendChild(img); el.appendChild(meta);
+  el.style.cursor = "pointer";
+  el.onclick = () => saveBlob(o.blob, o.name);
+  return el;
+}
+
+/* ---------------- 人脸检测（BlazeFace，判头宽和倾角用） ---------------- */
+const FACE = { state: "idle", inst: null, msg: "" };
+
+async function faceReady(){
+  if(FACE.state === "ready") return true;
+  if(FACE.state === "err") return false;
+  if(FACE.state === "loading"){
+    for(let i = 0; i < 120 && FACE.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
+    return FACE.state === "ready";
+  }
+  FACE.state = "loading";
+  try {
+    const v = await import("./mp/vision_bundle.mjs");
+    const fs = await v.FilesetResolver.forVisionTasks("./mp/wasm");
+    const opt = d => ({
+      baseOptions: { modelAssetPath: "./mp/blaze.tflite", delegate: d },
+      runningMode: "IMAGE",
+      minDetectionConfidence: 0.35
+    });
+    let inst = null;
+    try { inst = await v.FaceDetector.createFromOptions(fs, opt("GPU")); }
+    catch(e){ inst = await v.FaceDetector.createFromOptions(fs, opt("CPU")); }
+    FACE.inst = inst;
+    FACE.state = "ready";
+  } catch(e){
+    FACE.state = "err";
+    FACE.msg = String((e && e.message) || e).slice(0, 120);
+  }
+  return FACE.state === "ready";
+}
+
+/* 返回画布坐标系里的脸框与倾角；没检到返回 null */
+function faceScan(canvas){
+  if(FACE.state !== "ready" || !FACE.inst) return null;
+  let res = null;
+  try { res = FACE.inst.detect(canvas); } catch(e){ return null; }
+  const ds = (res && res.detections) || [];
+  if(!ds.length) return null;
+  let best = ds[0];
+  for(const d of ds){
+    const bb = d.boundingBox;
+    if(!best || bb.width * bb.height > best.boundingBox.width * best.boundingBox.height) best = d;
+  }
+  const bb = best.boundingBox;
+  const kp = best.keypoints || [];
+  const out = { x: bb.originX, y: bb.originY, w: bb.width, h: bb.height, roll: 0,
+                score: best.categories ? best.categories[0].score : 1 };
+  // MediaPipe 关键点顺序：右眼、左眼、鼻尖、嘴心、右耳、左耳
+  const rollOf = (a, c) => Math.atan2(c.y - a.y, c.x - a.x) * 180 / Math.PI;
+  if(kp.length >= 2){
+    const a0 = kp[0], c0 = kp[1];
+    out.roll = rollOf(a0, c0);
+    out.eyeMid = { x: (a0.x + c0.x) / 2, y: (a0.y + c0.y) / 2 };
+    out.eyeGap = Math.hypot(c0.x - a0.x, c0.y - a0.y);
+    // 朝向：正脸时鼻尖落在双眼中线上；转头时往一侧偏。
+    // 关键点是归一化坐标（0-1），这里只取比值，所以与分辨率无关
+    if(kp.length >= 3){
+      out.yaw = (kp[2].x - out.eyeMid.x) / Math.max(1e-6, out.eyeGap);
+    }
+  }
+  try { if(res && res.close) res.close(); } catch(e){}
+
+  return out;
+}
+
+/* ---------------- 本地人像分割（MediaPipe，模型随包分发） ---------------- */
+const SEG = { state: "idle", inst: null, msg: "" };
+
+async function segReady(){
+  if(SEG.state === "ready") return true;
+  if(SEG.state === "err") return false;
+  if(SEG.state === "loading"){
+    for(let i = 0; i < 120 && SEG.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
+    return SEG.state === "ready";
+  }
+  SEG.state = "loading";
+  try {
+    const v = await import("./mp/vision_bundle.mjs");
+    const fs = await v.FilesetResolver.forVisionTasks("./mp/wasm");
+    const opt = d => ({
+      baseOptions: { modelAssetPath: "./mp/selfie_segmenter.tflite", delegate: d },
+      runningMode: "IMAGE",
+      outputCategoryMask: true
+    });
+    let inst = null;
+    try { inst = await v.ImageSegmenter.createFromOptions(fs, opt("GPU")); }
+    catch(e){ inst = await v.ImageSegmenter.createFromOptions(fs, opt("CPU")); }
+    SEG.inst = inst;
+    SEG.state = "ready";
+  } catch(e){
+    SEG.state = "err";
+    SEG.msg = String((e && e.message) || e).slice(0, 120);
+  }
+  return SEG.state === "ready";
+}
+
+/* 传画布进来，返回与人同尺寸的遮罩：255 = 人，0 = 背景 */
+function segMaskOf(canvas){
+  const res = SEG.inst.segment(canvas);
+  const cm = res.categoryMask;
+  const u8 = cm.getAsUint8Array();
+  const out = new Uint8ClampedArray(u8.length);
+  // 注意：这个模型的类别遮罩里 0 才是人，1 是背景（踩过一次的坑）
+  for(let i = 0; i < u8.length; i++) out[i] = u8[i] ? 0 : 255;
+  const mw = cm.width || canvas.width, mh = cm.height || canvas.height;
+  try { cm.close(); } catch(e){}
+  try { res.close(); } catch(e){}
+  return { mask: maskMain(out, mw, mh), w: mw, h: mh };
+}
+
+/* 遮罩清理：只留主要连通块（碎块会冒充头顶），补掉小洞。
+   大洞不补——那是手臂和身体之间的空隙，补上就成一块实心饼了。 */
+function maskMain(mask, w, h){
+  const N = w * h;
+  const lab = new Int32Array(N);
+  const stack = new Int32Array(N);
+  const areas = [0];
+  const y1 = [0], y2 = [0];          // 每块的最高行 / 最低行
+  let cur = 0;
+  for(let p0 = 0; p0 < N; p0++){
+    if(mask[p0] < 128 || lab[p0]) continue;
+    cur++;
+    let sp = 0; stack[sp++] = p0; lab[p0] = cur;
+    let n = 0, mn = h, mx = -1;
+    while(sp > 0){
+      const q = stack[--sp]; n++;
+      const x = q % w, y = (q / w) | 0;
+      if(y < mn) mn = y;
+      if(y > mx) mx = y;
+      if(x > 0){ const t = q - 1; if(mask[t] >= 128 && !lab[t]){ lab[t] = cur; stack[sp++] = t; } }
+      if(x < w - 1){ const t = q + 1; if(mask[t] >= 128 && !lab[t]){ lab[t] = cur; stack[sp++] = t; } }
+      if(y > 0){ const t = q - w; if(mask[t] >= 128 && !lab[t]){ lab[t] = cur; stack[sp++] = t; } }
+      if(y < h - 1){ const t = q + w; if(mask[t] >= 128 && !lab[t]){ lab[t] = cur; stack[sp++] = t; } }
+    }
+    areas.push(n); y1.push(mn); y2.push(mx);
+  }
+  if(cur <= 1) return mask;
+
+  let big = 1;
+  for(let i = 2; i <= cur; i++) if(areas[i] > areas[big]) big = i;
+  const keep = new Uint8Array(cur + 1);
+  for(let i = 1; i <= cur; i++){
+    // 面积够大才留（手、包带可能和身体断开）；
+    // 而且底边必须在主体头顶以下——悬在头顶上方的都是背景杂物
+    if(areas[i] >= areas[big] * 0.06 && y2[i] >= y1[big]) keep[i] = 1;
+  }
+
+  const out = new Uint8ClampedArray(N);
+  for(let p0 = 0; p0 < N; p0++) out[p0] = (lab[p0] && keep[lab[p0]]) ? 255 : 0;
+
+  // 从四边灌一遍"外面的背景"，灌不到的空洞逐块量面积，小的补上
+  const seen = new Uint8Array(N);
+  let sp2 = 0;
+  const push = p0 => { if(!seen[p0] && out[p0] === 0){ seen[p0] = 1; stack[sp2++] = p0; } };
+  for(let x = 0; x < w; x++){ push(x); push((h - 1) * w + x); }
+  for(let y = 0; y < h; y++){ push(y * w); push(y * w + w - 1); }
+  while(sp2 > 0){
+    const q = stack[--sp2];
+    const x = q % w, y = (q / w) | 0;
+    if(x > 0) push(q - 1);
+    if(x < w - 1) push(q + 1);
+    if(y > 0) push(q - w);
+    if(y < h - 1) push(q + w);
+  }
+  const holeLimit = Math.max(400, Math.round(N * 0.004));
+  for(let p0 = 0; p0 < N; p0++){
+    if(out[p0] !== 0 || seen[p0]) continue;
+    let sp = 0; stack[sp++] = p0; seen[p0] = 1;
+    const cells = [p0];
+    while(sp > 0){
+      const q = stack[--sp];
+      const x = q % w, y = (q / w) | 0;
+      const nb = [x > 0 ? q - 1 : -1, x < w - 1 ? q + 1 : -1, y > 0 ? q - w : -1, y < h - 1 ? q + w : -1];
+      for(const t of nb){
+        if(t < 0 || seen[t] || out[t] !== 0) continue;
+        seen[t] = 1; stack[sp++] = t; cells.push(t);
+      }
+    }
+    if(cells.length <= holeLimit) for(const q of cells) out[q] = 255;
+  }
+  return out;
+}
+
+/* 积分图算方框均值，O(1)/像素 */
+function boxMean(src, w, h, r){
+  const W1 = w + 1;
+  const S = new Float64Array(W1 * (h + 1));
+  for(let y = 0; y < h; y++){
+    let rs = 0;
+    const row = y * w, srow = (y + 1) * W1, prow = y * W1;
+    for(let x = 0; x < w; x++){
+      rs += src[row + x];
+      S[srow + x + 1] = S[prow + x + 1] + rs;
+    }
+  }
+  const out = new Float32Array(w * h);
+  for(let y = 0; y < h; y++){
+    const y0 = y - r < 0 ? 0 : y - r, y1 = y + r + 1 > h ? h : y + r + 1;
+    const r0 = y0 * W1, r1 = y1 * W1, area = (y1 - y0);
+    for(let x = 0; x < w; x++){
+      const x0 = x - r < 0 ? 0 : x - r, x1 = x + r + 1 > w ? w : x + r + 1;
+      out[y * w + x] = (S[r1 + x1] - S[r1 + x0] - S[r0 + x1] + S[r0 + x0]) / (area * (x1 - x0));
+    }
+  }
+  return out;
+}
+
+/* 导向滤波：把 0/255 的硬遮罩变成跟着原图边缘走的软 alpha */
+function guidedAlpha(mask, rgb, w, h, r, eps){
+  const N = w * h;
+  const I = new Float32Array(N), P = new Float32Array(N);
+  const II = new Float32Array(N), IP = new Float32Array(N);
+  for(let i = 0; i < N; i++){
+    const j = i * 4;
+    const l = (rgb[j] * 77 + rgb[j + 1] * 150 + rgb[j + 2] * 29) / 65280;  // 0..1
+    const p = mask[i] / 255;
+    I[i] = l; P[i] = p; II[i] = l * l; IP[i] = l * p;
+  }
+  const mI = boxMean(I, w, h, r), mP = boxMean(P, w, h, r);
+  const mII = boxMean(II, w, h, r), mIP = boxMean(IP, w, h, r);
+  const A = new Float32Array(N), B = new Float32Array(N);
+  for(let i = 0; i < N; i++){
+    const varI = mII[i] - mI[i] * mI[i];
+    const cov = mIP[i] - mI[i] * mP[i];
+    const a = cov / (varI + eps);
+    A[i] = a; B[i] = mP[i] - a * mI[i];
+  }
+  const mA = boxMean(A, w, h, r), mB = boxMean(B, w, h, r);
+  const out = new Uint8ClampedArray(N);
+  for(let i = 0; i < N; i++){
+    let v = mA[i] * I[i] + mB[i];
+    out[i] = v <= 0 ? 0 : v >= 1 ? 255 : v * 255;
+  }
+  return out;
+}
+
+/* 模型遮罩是 256×256 放大的，直接拿来合成，头发边像锯齿。
+   先往里收 1 px（顺带去掉原背景的灰边），再做一次 1-2-1 模糊，
+   边缘就成了 1 px 宽的软过渡——在 295×413 上看着是自然的发丝。 */
+function softenMask(mask, w, h){
+  const N = w * h;
+  const er = new Uint8ClampedArray(N);
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      const p = y * w + x;
+      if(mask[p] < 128) continue;
+      const l = x > 0 ? mask[p - 1] : 255, r = x < w - 1 ? mask[p + 1] : 255;
+      const u = y > 0 ? mask[p - w] : 255, d = y < h - 1 ? mask[p + w] : 255;
+      if(l < 128 || r < 128 || u < 128 || d < 128) continue;
+      er[p] = 255;
+    }
+  }
+  const tmp = new Uint8ClampedArray(N);
+  for(let y = 0; y < h; y++){
+    const r0 = y * w;
+    for(let x = 0; x < w; x++){
+      const p = r0 + x, c = er[p];
+      const l = x > 0 ? er[p - 1] : c, r = x < w - 1 ? er[p + 1] : c;
+      tmp[p] = (l + 2 * c + r) >> 2;
+    }
+  }
+  const out = new Uint8ClampedArray(N);
+  for(let y = 0; y < h; y++){
+    const r0 = y * w;
+    for(let x = 0; x < w; x++){
+      const p = r0 + x, c = tmp[p];
+      const u = y > 0 ? tmp[p - w] : c, d = y < h - 1 ? tmp[p + w] : c;
+      out[p] = (u + 2 * c + d) >> 2;
+    }
+  }
+  return out;
+}
+
+/* 遮罩体检：背景占比 / 人脸区被误判成背景的比例 */
+function maskStats(mask, w, h, head){
+  let bg = 0;
+  for(let i = 0; i < mask.length; i++) if(mask[i] < 128) bg++;
+  let fx0, fx1, fy0, fy1;
+  if(head && head.w > 2 && head.h > 2){
+    // 有头框就按头框取五官区：全身照里"画面中央"根本不是脸
+    fx0 = Math.max(0, Math.round(head.x + head.w * 0.16));
+    fx1 = Math.min(w, Math.round(head.x + head.w * 0.84));
+    fy0 = Math.max(0, Math.round(head.y + head.h * 0.28));
+    fy1 = Math.min(h, Math.round(head.y + head.h * 0.78));
+  } else {
+    fx0 = Math.round(w * 0.25); fx1 = Math.round(w * 0.75);
+    fy0 = Math.round(h * 0.22); fy1 = Math.round(h * 0.62);
+  }
+  let fn = 0, fh = 0;
+  for(let y = fy0; y < fy1; y++){
+    for(let x = fx0; x < fx1; x++){
+      fn++;
+      if(mask[y * w + x] < 128) fh++;
+    }
+  }
+  return { ratio: w * h ? bg / (w * h) : 0, faceHit: fn ? fh / fn : 0 };
+}
+
+/* 用遮罩算头顶 / 头宽 / 水平中心（分析画布坐标系） */
+function maskShape(mask, w, h){
+  const rows = [];
+  let top = null, bottom = 0;
+  for(let y = 0; y < h; y++){
+    let cnt = 0, minX = w, maxX = -1;
+    for(let x = 0; x < w; x++){
+      if(mask[y * w + x] >= 128){
+        cnt++;
+        if(x < minX) minX = x;
+        if(x > maxX) maxX = x;
+      }
+    }
+    rows.push([cnt, minX, maxX]);
+    if(cnt > w * 0.012){ if(top === null) top = y; bottom = y; }
+  }
+  if(top === null) return { top: null, headW: 0, cx: w / 2, bodyCx: w / 2 };
+  const span = Math.max(4, Math.round((bottom - top) * 0.15));
+  let headW = 0, cxs = 0, nc = 0;
+  for(let y = top; y < Math.min(h, top + span); y++){
+    const [cnt, minX, maxX] = rows[y];
+    if(cnt <= 0) continue;
+    const w0 = maxX - minX + 1;
+    if(w0 > headW) headW = w0;
+    cxs += (minX + maxX) / 2;
+    nc++;
+  }
+  const cx = nc ? cxs / nc : w / 2;
+
+  // 脖子以下的重心：自拍最常见的毛病是脸正对镜头、身体却甩到一边，
+  // 这时「脸居中」和「人在中间」是两件事，居中要按身体算
+  let bx = 0, bn = 0;
+  const by0 = Math.round(top + headW * HEAD_K * 1.05);
+  for(let y = by0; y < h; y++){
+    const [cnt, minX, maxX] = rows[y];
+    if(cnt <= 0) continue;
+    bx += (minX + maxX) / 2 * cnt;
+    bn += cnt;
+  }
+  const bodyCx = bn ? bx / bn : cx;
+
+  // 胸口宽度（下巴往下约 0.2~0.4 个头高）：正肩半身照这里一般是 2.4~3.4 个头宽。
+  // 只有 1.6~1.8 说明相机怼得太近（自拍），肩膀根本没进画面——
+  // 这种源片无论怎么裁都不像报名照，得让人退后重拍
+  let shW = 0;
+  const sa = Math.round(top + headW * HEAD_K + headW * 0.18);
+  const sb = Math.round(sa + headW * 0.20);
+  let sL = w, sR = -1;
+  for(let y = sa; y < Math.min(h, sb); y++){
+    const [cnt, minX, maxX] = rows[y];
+    if(cnt <= 0) continue;
+    if(minX < sL) sL = minX;
+    if(maxX > sR) sR = maxX;
+  }
+  if(sR >= 0) shW = (sR - sL + 1) / headW;
+  return { top, headW, cx, bodyCx, shW };
+}
+
+/* ---------------- 报名照 ---------------- */
+const ID_SPECS = [
+  {k:"gwy",  name:"国考 / 省考", w:295, h:413, kb:10, bg:["#ffffff","#438edb"]},
+  {k:"c1",   name:"一寸",        w:295, h:413, kb:0},
+  {k:"c1b",  name:"大一寸",      w:390, h:567, kb:0},
+  {k:"c2",   name:"二寸",        w:413, h:579, kb:0},
+  {k:"c2s",  name:"小二寸",      w:413, h:531, kb:0},
+  {k:"passport", name:"护照",    w:390, h:567, kb:0, bg:["#ffffff"]},
+  {k:"ssc",  name:"社保卡",      w:358, h:441, kb:0, bg:["#ffffff"]}
+];
+const HEAD_K = 1.5;          // 头顶到下巴 ≈ 头宽 × 1.5
+const HEAD_TOP = 0.10;       // 头顶落在画面 10% 处
+const HEAD_BOT = 0.775;      // 下巴落在 77.5% 处
+const EYE_LINE = 0.42;
+
+const ID = {
+  it:null, img:null, spec:ID_SPECS[0], bg:"#ffffff", removeBg:true, tol:18,
+  guides:true, zoom:1, dxN:0, dyN:0,
+  out:null, outIm:null, showOut:false, an:null,
+  srcRep:[], outRep:[], maskNote:""
+};
+
+function clampNum(v, a, b){ return v < a ? a : v > b ? b : v; }
+
+function loadImg(url){
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error("图片无法解码"));
+    im.src = url;
+  });
+}
+
+/* ---- 画框与变换 ---- */
+function idFrameRect(){
+  const cv = $("#idcv");
+  const cw = Math.max(40, cv.clientWidth || 320);
+  const ch = Math.max(40, cv.clientHeight || 320);
+  const pad = 12;
+  const aw = Math.max(30, cw - pad * 2), ah = Math.max(30, ch - pad * 2);
+  const ar = ID.spec.w / ID.spec.h;
+  let fw = aw, fh = fw / ar;
+  if(fh > ah){ fh = ah; fw = fh * ar; }
+  return { cw, ch, fw, fh, x:(cw - fw) / 2, y:(ch - fh) / 2 };
+}
+
+/* 把当前 zoom / 偏移换成具体画框下的采样矩形（fw/fh 与输出同比例，结果一致） */
+function idT(fw, fh){
+  const it = ID.it;
+  if(!it || !it.w || !it.h) return null;
+  const base = Math.max(fw / it.w, fh / it.h);
+  const s = base * ID.zoom;
+  const ox = ID.dxN * fh, oy = ID.dyN * fh;
+  const sw = fw / s, sh = fh / s;
+  const sx = it.w / 2 - (fw / 2 + ox) / s;
+  const sy = it.h / 2 - (fh / 2 + oy) / s;
+  return { base, s, ox, oy, sx, sy, sw, sh };
+}
+
+/* extra：允许画框越出原图多少（以画框高为单位）。
+   换底色时画框外一律是纯底色，所以可以越界——不越界的话，
+   脸贴边的照片只能把人物推到边上去，那就不叫报名照了。 */
+function idClamp(fw, fh, extra){
+  const it = ID.it;
+  if(!it || !it.w) return;
+  const base = Math.max(fw / it.w, fh / it.h);
+  const s = base * ID.zoom;
+  const ex = Math.max(0, extra || 0);
+  const mx = Math.max(0, (it.w * s - fw) / 2) / fh + ex;
+  const my = Math.max(0, (it.h * s - fh) / 2) / fh + ex;
+  ID.dxN = clampNum(ID.dxN, -mx, mx);
+  ID.dyN = clampNum(ID.dyN, -my, my);
+}
+
+/* ---- 画布 ---- */
+function idDraw(){
+  const cv = $("#idcv");
+  if(!cv) return;
+  const r = idFrameRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(r.cw * dpr)), H = Math.max(1, Math.round(r.ch * dpr));
+  if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const cs = getComputedStyle(document.documentElement);
+  const bg2 = cs.getPropertyValue("--bg2").trim() || "#161a20";
+  const line = cs.getPropertyValue("--line").trim() || "#262d37";
+  const acc = cs.getPropertyValue("--acc").trim() || "#f2a33c";
+  ctx.fillStyle = bg2;
+  ctx.fillRect(0, 0, W, H);
+
+  const fx = r.x * dpr, fy = r.y * dpr, fw = r.fw * dpr, fh = r.fh * dpr;
+
+  if(ID.showOut && ID.outIm){
+    ctx.fillStyle = ID.bg;
+    ctx.fillRect(fx, fy, fw, fh);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(ID.outIm, fx, fy, fw, fh);
+  } else if(ID.img){
+    const t = idT(r.fw, r.fh);
+    if(t){
+      // 画框可能越出原图，越出去的那块要按目标底色显示，
+      // 不然预览里会露出一圈编辑器背景色，看着像没处理好
+      if(ID.removeBg){
+        ctx.fillStyle = ID.bg;
+        ctx.fillRect(fx, fy, fw, fh);
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(fx, fy, fw, fh);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      const dx = (r.fw / 2 - ID.it.w / 2 * t.s + t.ox) * dpr;
+      const dy = (r.fh / 2 - ID.it.h / 2 * t.s + t.oy) * dpr;
+      ctx.drawImage(ID.img, fx + dx, fy + dy, ID.it.w * t.s * dpr, ID.it.h * t.s * dpr);
+      ctx.restore();
+
+      // 画框外压暗
+      ctx.fillStyle = "rgba(0,0,0,.55)";
+      ctx.fillRect(0, 0, W, fy);
+      ctx.fillRect(0, fy + fh, W, Math.max(0, H - fy - fh));
+      ctx.fillRect(0, fy, fx, fh);
+      ctx.fillRect(fx + fw, fy, Math.max(0, W - fx - fw), fh);
+    }
+  }
+
+  ctx.strokeStyle = line;
+  ctx.lineWidth = Math.max(1, dpr * 0.75);
+  ctx.strokeRect(fx + .5, fy + .5, fw - 1, fh - 1);
+
+  if(ID.guides){
+    const rows = [[HEAD_TOP, acc, "1"], [EYE_LINE, "#5ec8f0", "2"], [HEAD_BOT, acc, "3"]];
+    ctx.font = (10 * dpr) + "px system-ui,sans-serif";
+    ctx.textBaseline = "middle";
+    for(const [p, c, lb] of rows){
+      const y = fy + fh * p;
+      ctx.save();
+      ctx.setLineDash([5 * dpr, 4 * dpr]);
+      ctx.strokeStyle = c;
+      ctx.globalAlpha = .85;
+      ctx.beginPath();
+      ctx.moveTo(fx, y);
+      ctx.lineTo(fx + fw, y);
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = .9;
+      ctx.fillStyle = c;
+      ctx.fillText(lb, fx + 5 * dpr, y - 7 * dpr);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+/* ---- 体检 ---- */
+function idBoxLuma(d, w, x0, x1, y0, y1){
+  let sum = 0, n = 0;
+  for(let y = y0; y < y1; y++){
+    let i = (y * w + x0) * 4;
+    for(let x = x0; x < x1; x++, i += 4){
+      sum += (d[i] * 77 + d[i+1] * 150 + d[i+2] * 29) >> 8;
+      n++;
+    }
+  }
+  return n ? sum / n : 0;
+}
+
+function idQuantMode(d, aw, ah){
+  const hist = new Map();
+  const add = p => {
+    const i = p * 4;
+    const key = ((d[i] >> 5) << 6) | ((d[i+1] >> 5) << 3) | (d[i+2] >> 5);
+    let e = hist.get(key);
+    if(!e){ e = { n: 0, r: 0, g: 0, b: 0 }; hist.set(key, e); }
+    e.n++; e.r += d[i]; e.g += d[i+1]; e.b += d[i+2];
+  };
+  for(let x = 0; x < aw; x++){ add(x); add((ah - 1) * aw + x); }
+  for(let y = 0; y < ah; y++){ add(y * aw); add(y * aw + aw - 1); }
+  let best = null;
+  for(const e of hist.values()) if(!best || e.n > best.n) best = e;
+  return best ? [best.r / best.n, best.g / best.n, best.b / best.n] : [255, 255, 255];
+}
+
+function idAnalyzeSrc(){
+  const it = ID.it;
+  if(!it || !ID.img) return;
+  const CAP = 720;
+  const k = Math.min(1, CAP / Math.max(it.w, it.h));
+  const aw = Math.max(8, Math.round(it.w * k)), ah = Math.max(8, Math.round(it.h * k));
+  const cv = document.createElement("canvas");
+  cv.width = aw; cv.height = ah;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(ID.img, 0, 0, aw, ah);
+  const d = ctx.getImageData(0, 0, aw, ah).data;
+
+  // 光照 / 曝光：中央区
+  const cx0 = Math.round(aw * .22), cx1 = Math.round(aw * .78);
+  const cy0 = Math.round(ah * .12), cy1 = Math.round(ah * .88);
+  const lum = idBoxLuma(d, aw, cx0, cx1, cy0, cy1);
+  const lL = idBoxLuma(d, aw, cx0, Math.round(aw * .41), cy0, cy1);
+  const lR = idBoxLuma(d, aw, Math.round(aw * .59), cx1, cy0, cy1);
+  const lightDiff = Math.abs(lL - lR) / Math.max(1, lum);
+
+  // 背景参考色：四条边的众数颜色
+  const ref = idQuantMode(d, aw, ah);
+  const edgePure = pts => {
+    if(!pts.length) return 1;
+    const m = [0, 1, 2].map(c => {
+      const a = new Uint8Array(pts.length);
+      for(let i = 0; i < pts.length; i++) a[i] = d[pts[i] * 4 + c];
+      a.sort();
+      return a[a.length >> 1];
+    });
+    let c = 0;
+    for(const p of pts){
+      const i = p * 4;
+      if(Math.abs(d[i] - m[0]) + Math.abs(d[i+1] - m[1]) + Math.abs(d[i+2] - m[2]) < 58) c++;
+    }
+    return c / pts.length;
+  };
+  const eTop = [], eBot = [], eLeft = [], eRight = [];
+  for(let x = 0; x < aw; x++){ eTop.push(x); eBot.push((ah - 1) * aw + x); }
+  for(let y = 0; y < ah; y++){ eLeft.push(y * aw); eRight.push(y * aw + aw - 1); }
+  const pe = [edgePure(eTop), edgePure(eBot), edgePure(eLeft), edgePure(eRight)].sort((u, v) => u - v);
+  const ringPure = (pe[1] + pe[2]) / 2;
+
+  let cover = 0, faceHit = 0, top = null, headW = 0, headCx = aw / 2, bodyCx = aw / 2, shW = 0, fromModel = false;
+
+  // 脸框：比轮廓可靠，长发、肩膀都撑不大它
+  const fc = faceScan(cv);
+  if(fc){
+    fc.x /= k; fc.y /= k; fc.w /= k; fc.h /= k;          // 换回源图坐标
+  }
+
+  if(ID.seg && ID.seg.w === aw && ID.seg.h === ah){
+    // 有模型就用模型，边界和头顶都靠它
+    fromModel = true;
+    const sh = maskShape(ID.seg.mask, aw, ah);
+    const st = maskStats(ID.seg.mask, aw, ah,
+      sh.top === null ? null
+        : { x: sh.cx - sh.headW / 2, y: sh.top, w: sh.headW, h: sh.headW * HEAD_K });
+    cover = st.ratio;
+    faceHit = st.faceHit;
+    top = sh.top;
+    headW = sh.headW;
+    headCx = sh.cx;
+    bodyCx = sh.bodyCx;
+    shW = sh.shW || 0;
+  } else {
+    // 兜底：按背景色做连通域
+    const N = aw * ah;
+    const bin = new Uint8Array(N);
+    const D2 = 96;
+    for(let p0 = 0; p0 < N; p0++){
+      const i = p0 * 4;
+      if(Math.abs(d[i] - ref[0]) + Math.abs(d[i+1] - ref[1]) + Math.abs(d[i+2] - ref[2]) > D2) bin[p0] = 1;
+    }
+    const lab = new Int32Array(N);
+    const stack = new Int32Array(N);
+    const areas = [0];
+    let cur = 0;
+    for(let p0 = 0; p0 < N; p0++){
+      if(!bin[p0] || lab[p0]) continue;
+      cur++;
+      let sp = 0; stack[sp++] = p0; lab[p0] = cur;
+      let n = 0;
+      while(sp > 0){
+        const q0 = stack[--sp]; n++;
+        const x = q0 % aw, y = (q0 / aw) | 0;
+        if(x > 0){ const q = q0 - 1; if(bin[q] && !lab[q]){ lab[q] = cur; stack[sp++] = q; } }
+        if(x < aw - 1){ const q = q0 + 1; if(bin[q] && !lab[q]){ lab[q] = cur; stack[sp++] = q; } }
+        if(y > 0){ const q = q0 - aw; if(bin[q] && !lab[q]){ lab[q] = cur; stack[sp++] = q; } }
+        if(y < ah - 1){ const q = q0 + aw; if(bin[q] && !lab[q]){ lab[q] = cur; stack[sp++] = q; } }
+      }
+      areas.push(n);
+    }
+    let bid = 0;
+    for(let i = 1; i < areas.length; i++) if(areas[i] > (areas[bid] || 0)) bid = i;
+
+    if(bid){
+      const rowMin = new Int32Array(ah).fill(aw);
+      const rowMax = new Int32Array(ah).fill(-1);
+      let bottom = 0;
+      for(let p0 = 0; p0 < N; p0++){
+        if(lab[p0] !== bid) continue;
+        const x = p0 % aw, y = (p0 / aw) | 0;
+        if(top === null || y < top) top = y;
+        if(y > bottom) bottom = y;
+        if(x < rowMin[y]) rowMin[y] = x;
+        if(x > rowMax[y]) rowMax[y] = x;
+      }
+      if(top !== null){
+        const span = Math.max(4, Math.round((bottom - top) * 0.16));
+        const y1 = Math.min(ah, top + span);
+        let cxs = 0, nc = 0;
+        for(let y = top; y < y1; y++){
+          if(rowMax[y] < 0) continue;
+          const w0 = rowMax[y] - rowMin[y] + 1;
+          if(w0 > headW && w0 < aw * 0.72) headW = w0;
+          cxs += (rowMax[y] + rowMin[y]) / 2; nc++;
+        }
+        if(nc) headCx = cxs / nc;
+        if(areas[bid] < aw * ah * 0.012) top = null;
+      }
+    }
+    try {
+      const fr = idFill(d, aw, ah, ID.tol);
+      cover = fr.ratio;
+      faceHit = fr.faceHit || 0;
+    } catch(e){ cover = 0; }
+  }
+
+  // 逆光：背景比脸亮一截，脸就会发黑。手机自拍最常见的废片，光看画面中央量不出来
+  let bgLum = 0, faceLum = 0;
+  if(top !== null && headW > 0){
+    const bx0 = Math.max(0, Math.round(headCx - headW * 0.32));
+    const bx1 = Math.min(aw, Math.round(headCx + headW * 0.32));
+    const by0 = Math.max(0, Math.round(top + headW * HEAD_K * 0.28));
+    const by1 = Math.min(ah, Math.round(top + headW * HEAD_K * 0.80));
+    if(bx1 > bx0 + 2 && by1 > by0 + 2) faceLum = idBoxLuma(d, aw, bx0, bx1, by0, by1);
+    if(ID.seg && ID.seg.w === aw && ID.seg.h === ah){
+      const m = ID.seg.mask;
+      let s2 = 0, n2 = 0;
+      for(let p2 = 0; p2 < m.length; p2++){
+        if(m[p2] >= 128) continue;
+        const i2 = p2 * 4;
+        s2 += (d[i2] * 77 + d[i2 + 1] * 150 + d[i2 + 2] * 29) >> 8;
+        n2++;
+      }
+      bgLum = n2 ? s2 / n2 : 0;
+    }
+  }
+
+  ID.an = {
+    k, aw, ah, cover, faceHit, fromModel, bgLum, faceLum, face: fc,
+    ringPure,
+    top: top === null ? null : top / k,
+    headW: headW / k,
+    cx: headCx / k,
+    bodyCx: bodyCx / k,
+    shW,
+    yaw: fc && fc.yaw ? fc.yaw : 0,
+    lum, lL, lR, lightDiff
+  };
+}
+
+function idSharp(){
+  const it = ID.it;
+  if(!it) return null;
+  const r = idFrameRect();
+  const t = idT(r.fw, r.fh);
+  if(!t) return null;
+  const spec = ID.spec;
+  const long = Math.max(spec.w, spec.h);
+  const k = 256 / long;
+  const cw = Math.max(8, Math.round(spec.w * k)), ch = Math.max(8, Math.round(spec.h * k));
+  const cv = document.createElement("canvas");
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(ID.img, t.sx, t.sy, t.sw, t.sh, 0, 0, cw, ch);
+  const d = ctx.getImageData(0, 0, cw, ch).data;
+  const g = new Float32Array(cw * ch);
+  for(let i = 0, j = 0; j < g.length; i += 4, j++) g[j] = (d[i] * 77 + d[i+1] * 150 + d[i+2] * 29) / 256;
+  let sum = 0, sum2 = 0, n = 0;
+  for(let y = 1; y < ch - 1; y++){
+    for(let x = 1; x < cw - 1; x++){
+      const i = y * cw + x;
+      const v = 4 * g[i] - g[i-1] - g[i+1] - g[i-cw] - g[i+cw];
+      sum += v; sum2 += v * v; n++;
+    }
+  }
+  if(!n) return 0;
+  const m = sum / n;
+  const lap = Math.max(0, sum2 / n - m * m);
+  let s1 = 0, s2 = 0;
+  for(let i = 0; i < g.length; i++){ s1 += g[i]; s2 += g[i] * g[i]; }
+  const mu = s1 / g.length;
+  const sd = Math.sqrt(Math.max(0, s2 / g.length - mu * mu));
+  return { lap, sd, norm: lap / (sd * sd + 1) };
+}
+
+/* 读 JPEG 量化表均值：区分原图与转发重压 */
+async function jpegQuantMean(file){
+  try {
+    const buf = new Uint8Array(await file.slice(0, 262144).arrayBuffer());
+    if(buf[0] !== 0xFF || buf[1] !== 0xD8) return null;
+    let i = 2;
+    while(i < buf.length - 3){
+      if(buf[i] !== 0xFF){ i++; continue; }
+      const m = buf[i+1];
+      if(m === 0xD9 || m === 0xDA) break;
+      if(m >= 0xD0 && m <= 0xD8 || m === 0x01){ i += 2; continue; }
+      const len = (buf[i+2] << 8) | buf[i+3];
+      if(len < 2) break;
+      if(m === 0xDB){
+        let q = i + 4, end = i + 2 + len, sum = 0, n = 0;
+        while(q < end - 1){
+          const pq = buf[q] >> 4;
+          if(pq === 0){
+            for(let k = 0; k < 64; k++){ sum += buf[q + 1 + k]; n++; }
+            q += 65;
+          } else {
+            for(let k = 0; k < 64; k++){ sum += (buf[q + 1 + 2*k] << 8) | buf[q + 2 + 2*k]; n++; }
+            q += 129;
+          }
+        }
+        return n ? sum / n : null;
+      }
+      i += 2 + len;
+    }
+  } catch(e){}
+  return null;
+}
+
+function repItem(level, title, txt){
+  return { level, title, txt };
+}
+
+let ID_TOK = 0;
+
+async function idCheckSrc(){
+  const tok = ++ID_TOK;
+  const sp = ID.spec;
+  const arr = [];
+  const it = ID.it;
+  if(!it){ ID.srcRep = []; return; }
+  const r = idFrameRect();
+  const t = idT(r.fw, r.fh);
+
+  if(t){
+    const ratio = t.sh / sp.h;
+    const have = Math.round(t.sw) + "×" + Math.round(t.sh);
+    if(ratio >= 1.3) arr.push(repItem("ok", "像素够用", "取景范围 " + have + " px，输出 " + sp.w + "×" + sp.h + "，缩小 " + (1 / ratio).toFixed(2) + " 倍"));
+    else if(ratio >= 1.0) arr.push(repItem("warn", "像素刚好", "取景范围 " + have + " px，几乎没有余量，边缘会偏软"));
+    else arr.push(repItem("bad", "像素不够", "要放大 " + (1 / ratio).toFixed(2) + " 倍才够 " + sp.h + " px 高，出图会发虚"));
+  }
+
+  const an = ID.an;
+  if(an){
+    const sh = idSharp();
+    if(sh !== null){
+      const v = Math.round(sh.lap);
+      if(v >= 320) arr.push(repItem("ok", "清晰", "锐度 " + v));
+      else arr.push(repItem("warn", "可能手抖", "锐度 " + v + "（<320），边有点糊；能重拍最好"));
+    }
+
+    const lum = Math.round(an.lum);
+    const fl = Math.round(an.faceLum || 0);
+    const bl = Math.round(an.bgLum || 0);
+    const bias = fl > 0 && bl > 0 ? bl / fl : 0;
+    if(lum < 55) arr.push(repItem("bad", "偏暗", "主体区域亮度 " + lum + "（建议 55–205），光不够"));
+    else if(lum > 205) arr.push(repItem("bad", "过曝", "主体区域亮度 " + lum + "，高光没有细节了"));
+    else if(bl >= 190 && bias >= 1.35) arr.push(repItem("warn", "逆光",
+      "背景比脸亮 " + bias.toFixed(1) + " 倍（脸 " + fl + " / 背景 " + bl + "），换上纯白底后脸会更显暗；面向光源、或者背对窗户重拍一张"));
+    else if(fl > 0 && fl < 95) arr.push(repItem("warn", "脸偏暗",
+      "脸的平均亮度 " + fl + "，现在这种光线下换白底会更明显；面向光或者加一盏灯"));
+    else arr.push(repItem("ok", "曝光正常", "主体区域亮度 " + lum));
+
+    const ld = Math.round(an.lightDiff * 100);
+    if(ld >= 32) arr.push(repItem("bad", "左右光差大", "左 " + Math.round(an.lL) + " / 右 " + Math.round(an.lR) + "，差 " + ld + "%，一侧脸会发黑"));
+    else if(ld >= 22) arr.push(repItem("warn", "光线略斜", "左右亮度差 " + ld + "%，换底后会更明显"));
+    else arr.push(repItem("ok", "光线均匀", "左右亮度差 " + ld + "%"));
+
+    // 姿态：公告要求「免冠正面」，脸和肩膀都得正
+    const yaw = Math.abs(an.yaw || 0);
+    const bOff = (an.bodyCx !== null && an.bodyCx !== undefined && an.headW > 0)
+      ? Math.abs(an.bodyCx - an.cx) / an.headW : 0;
+    if(yaw >= 0.42){
+      arr.push(repItem("bad", "脸偏过去了",
+        "鼻尖偏离双眼中线 " + Math.round(yaw * 100) + "%，要正对镜头拍；让别人站在正前方帮你拍一张"));
+    } else if(bOff >= 0.60){
+      arr.push(repItem("bad", "身体是侧着的",
+        "肩膀比头偏了约 " + bOff.toFixed(1) + " 个头宽，自拍常见的侧身；报名照要正肩，重拍一张更稳"));
+    } else if(bOff >= 0.40){
+      arr.push(repItem("warn", "身体略偏",
+        "肩膀比头偏了约 " + bOff.toFixed(1) + " 个头宽，换底后会显得歪"));
+    } else if(an.shW > 0 && an.shW < 1.85){
+      // 官方要求"免冠正面"，凑近拍出来的只到肩头，正肩根本看不出来
+      arr.push(repItem("warn", "取景偏窄",
+        "肩宽只有 " + an.shW.toFixed(1) + " 个头宽（正肩半身照一般 2.4 以上），像是凑近拍的；退后一点让别人帮你拍更像报名照"));
+    } else {
+      arr.push(repItem("ok", "正脸正肩", "脸和身体都在中线上"));
+    }
+
+    const cov = an.cover || 0;
+    const hit = an.faceHit || 0;
+    const cp = Math.round(cov * 100);
+    if(an.fromModel){
+      if(cov < 0.08) arr.push(repItem("warn", "背景太少", "人像几乎占满画面，换底会贴着边缘，建议退后一点重拍"));
+      else arr.push(repItem("ok", "背景能换", "认出 " + cp + "% 的背景，换底走本地模型，任何背景都行"));
+    } else if(hit > 0.25){
+      arr.push(repItem("bad", "容差太大", "抠图已经吃到人脸（" + Math.round(hit * 100) + "%），把容差调小"));
+    } else if(cov >= 0.22){
+      arr.push(repItem("ok", "背景能换", "抠出 " + cp + "% 的背景"));
+    } else if(cov >= 0.10){
+      arr.push(repItem("warn", "背景不好抠", "只抠出 " + cp + "%，边缘可能留杂色，试着调容差"));
+    } else {
+      arr.push(repItem("bad", "背景杂乱", "只认出 " + cp + "% 的背景，抠不干净；想换底得找面纯色墙重拍"));
+    }
+  } else {
+    arr.push(repItem("bad", "没找到人像", "没识别出清楚的人形轮廓，把照片拖到画面中间再试"));
+  }
+
+  const qm = await jpegQuantMean(it.file);
+  if(tok !== ID_TOK) return;
+  if(qm === null) arr.push(repItem("ok", "这是原图", "PNG 等无损格式，没有重压损失"));
+  else {
+    const q = Math.round(qm * 10) / 10;
+    if(qm < 16) arr.push(repItem("ok", "这是原图", "JPEG 量化均值 " + q + "，没有明显重压"));
+    else if(qm < 30) arr.push(repItem("warn", "被压过一次", "量化均值 " + q + "，细节已经损失，尽量从相册重新选原图"));
+    else arr.push(repItem("bad", "被多次转发", "量化均值 " + q + "，这是微信/群里存回来的图，细节大半没了"));
+  }
+
+  ID.srcRep = arr;
+}
+
+function idCheckOut(out){
+  const spec = ID.spec;
+  ID.outRep = [];
+  if(!out) return;
+  const sz = out.w === spec.w && out.h === spec.h;
+  ID.outRep.push(repItem(sz ? "ok" : "bad", sz ? "尺寸达标" : "尺寸不符",
+    out.w + "×" + out.h + " px（要求 " + spec.w + "×" + spec.h + "）"));
+
+  const lim = parseInt($("#idKB").value, 10) || 0;
+  if(lim > 0){
+    const kb = out.size / 1024;
+    const ok = kb <= lim;
+    ID.outRep.push(repItem(ok ? "ok" : "bad", ok ? "体积达标" : "体积超标",
+      kb.toFixed(1) + " KB（上限 " + lim + " KB，质量 " + Math.round(out.q * 100) + "）"));
+  } else {
+    ID.outRep.push(repItem("ok", "体积", fmtBytes(out.size) + "（未设上限，质量 " + Math.round(out.q * 100) + "）"));
+  }
+
+  if(out.bgRatio !== null){
+    const p = Math.round(out.bgRatio * 100);
+    ID.outRep.push(repItem(p >= 96 ? "ok" : "warn", p >= 96 ? "底色干净" : "底色有杂点",
+      "成品四边 " + p + "% 是目标底色"));
+  } else {
+    ID.outRep.push(repItem("warn", "没换底", ID.maskNote || "原背景保留"));
+  }
+}
+
+function idPaintReport(){
+  const box = $("#idrep");
+  if(!box) return;
+  box.innerHTML = "";
+  const all = ID.srcRep.concat(ID.outRep);
+  for(const it of all){
+    const el = document.createElement("div");
+    el.className = "rep " + it.level;
+    const i = document.createElement("i");
+    i.textContent = it.level === "ok" ? "✓" : it.level === "warn" ? "!" : "×";
+    const d = document.createElement("div");
+    const b = document.createElement("b");
+    b.textContent = it.title;
+    const sp = document.createElement("em");
+    sp.textContent = " " + it.txt;
+    d.appendChild(b); d.appendChild(sp);
+    el.appendChild(i); el.appendChild(d);
+    box.appendChild(el);
+  }
+  if(ID.srcRep.length){
+    const el = document.createElement("div");
+    el.className = "rep";
+    el.style.gridColumn = "1/-1";
+    el.innerHTML = '<i>i</i><div><b>构图可以对</b><em> 拖动照片或用滚轮缩放，把头顶、眼睛、下巴对到三条参考线；上面「先看这一条」是官方对源照片的硬要求，本软件不改人像。</em></div>';
+    box.appendChild(el);
+  }
+}
+
+let ID_TOK2 = 0;
+
+async function idSegSrc(){
+  ID.seg = null;
+  if(!ID.it || !ID.img) return;
+  if(!(await segReady())) return;
+  await faceReady();          // 拿不到脸框就退回轮廓，不挡主流程
+  const CAP = 720;
+  const k = Math.min(1, CAP / Math.max(ID.it.w, ID.it.h));
+  const aw = Math.max(8, Math.round(ID.it.w * k)), ah = Math.max(8, Math.round(ID.it.h * k));
+  const cv = document.createElement("canvas");
+  cv.width = aw; cv.height = ah;
+  cv.getContext("2d").drawImage(ID.img, 0, 0, aw, ah);
+  try {
+    const m = segMaskOf(cv);
+    ID.seg = { mask: m.mask, w: cv.width, h: cv.height };
+  } catch(e){ ID.seg = null; }
+}
+
+async function idRefresh(){
+  const tok = ++ID_TOK2;
+  await idSegSrc();
+  if(tok !== ID_TOK2) return;
+  idAnalyzeSrc();
+
+  // 歪了的照片转平：BlazeFace 量出的角度偏小，按 1.5 倍补，最多转三次
+  if(!ID.rotDone){
+    const an = ID.an;
+    const rl = (an && an.face && an.face.roll) || 0;
+    const sc = (an && an.face && an.face.score) || 0;
+    if(sc >= 0.5 && Math.abs(rl) >= 1.2 && Math.abs(rl) <= 15 && (ID.rotPass || 0) < 4){
+      ID.rotPass = (ID.rotPass || 0) + 1;
+      let d = rl * 1.6;      // idLevel 内部已有 rad=-deg，这里用正号
+      if(d > 12) d = 12;
+      if(d < -12) d = -12;
+      ID.rotTotal = (ID.rotTotal || 0) + d;
+      if(await idLevel(ID.rotTotal)) return idRefresh();
+    }
+  }
+  ID.rotDone = true;
+
+  await idCheckSrc();
+  if(tok !== ID_TOK2) return;
+  idPaintReport();
+  idDraw();
+  render();
+}
+
+/* 参考线下面那行提示：对齐失败时常驻一句话，别只闪个 toast */
+let ID_TIP0 = "";
+(function(){ const el = $("#idTip"); if(el) ID_TIP0 = el.textContent; })();
+function idTipNote(msg){
+  const el = $("#idTip");
+  if(!el) return;
+  el.textContent = msg || ID_TIP0;
+  el.style.color = msg ? "var(--acc)" : "";
+}
+
+/* 把原图转到绝对角度 deg（不是增量），这样迭代也只重编码一次画质 */
+async function idLevel(deg){
+  const it = ID.it;
+  const src0 = ID.baseImg || ID.img;
+  if(!it || !src0) return false;
+  if(Math.abs(deg) < 0.3){
+    // 不需要转：还原成原图
+    if(ID.img !== src0){
+      const u0 = URL.createObjectURL(await new Promise(r => {
+        const c0 = document.createElement("canvas");
+        c0.width = ID.baseW; c0.height = ID.baseH;
+        c0.getContext("2d").drawImage(src0, 0, 0);
+        c0.toBlob(r, "image/png");
+      }));
+      try { URL.revokeObjectURL(it.url); } catch(e){}
+      it.url = u0; it.w = ID.baseW; it.h = ID.baseH;
+      ID.img = await loadImg(u0);
+    }
+    return true;
+  }
+  const w = ID.baseW, h = ID.baseH;
+  const rad = -deg * Math.PI / 180;
+  const co = Math.abs(Math.cos(rad)), si = Math.abs(Math.sin(rad));
+  const nw = Math.max(8, Math.round(w * co + h * si));
+  const nh = Math.max(8, Math.round(w * si + h * co));
+  const cv = document.createElement("canvas");
+  cv.width = nw; cv.height = nh;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff";              // 转出来的四角留白，抠背景时会被换掉
+  g.fillRect(0, 0, nw, nh);
+  g.translate(nw / 2, nh / 2);
+  g.rotate(rad);
+  g.drawImage(src0, -w / 2, -h / 2, w, h);
+  const blob = await new Promise(r => cv.toBlob(r, "image/png"));
+  const url = URL.createObjectURL(blob);
+  const im = await loadImg(url);
+  try { URL.revokeObjectURL(it.url); } catch(e){}
+  it.url = url; it.w = im.naturalWidth; it.h = im.naturalHeight;
+  ID.img = im;
+  return true;
+}
+
+/* 头部倾斜角（度）：轮廓逐行中心的漂移量。正数=头往右倒，需要反向转回来。 */
+function idTiltDeg(){
+  const a = ID.an, it = ID.it;
+  if(!a || !ID.seg || a.top === null || !(a.headW > 0)) return 0;
+  const m = ID.seg.mask, w = ID.seg.w, h = ID.seg.h;
+  const k = w / it.w;
+  const top = a.top * k, headW = a.headW * k, headH = headW * HEAD_K;
+  const y0 = Math.max(0, Math.round(top + headH * 0.15));
+  const y1 = Math.min(h, Math.round(top + headH * 1.05));
+  if(y1 - y0 < 8) return 0;
+
+  const ys = [], cs = [];
+  for(let y = y0; y < y1; y++){
+    const row = y * w;
+    let lo = -1, hi = -1;
+    for(let x = 0; x < w; x++) if(m[row + x] >= 128){ lo = x; break; }
+    if(lo < 0) continue;
+    for(let x = w - 1; x >= 0; x--) if(m[row + x] >= 128){ hi = x; break; }
+    if(hi < 0) continue;
+    if(hi - lo < headW * 0.35) continue;          // 脖子那种窄行不要
+    ys.push(y); cs.push((lo + hi) / 2);
+  }
+  const n = ys.length;
+  if(n < 8) return 0;
+  let my = 0, mc = 0;
+  for(let i = 0; i < n; i++){ my += ys[i]; mc += cs[i]; }
+  my /= n; mc /= n;
+  let num = 0, den = 0;
+  for(let i = 0; i < n; i++){
+    const dy = ys[i] - my;
+    num += dy * (cs[i] - mc);
+    den += dy * dy;
+  }
+  if(den <= 0) return 0;
+  const slope = num / den;
+  const deg = Math.atan(slope) * 180 / Math.PI;
+  return Math.abs(deg) > 20 ? 0 : deg;
+}
+
+/* 自动对齐：用背景差估出头顶与头宽 */
+function idAuto(quiet){
+  const a = ID.an, it = ID.it;
+  const r = idFrameRect();
+  const base = Math.max(r.fw / it.w, r.fh / it.h);
+  const pureOk = a && (a.fromModel || a.ringPure >= 0.55);
+  const usable = a && a.top !== null && a.top > it.h * 0.004 && a.headW > 0 && pureOk;
+
+  if(!usable){
+    // 背景太杂，人像轮廓估不准：退回「贴顶对齐」，比乱缩放安全
+    ID.zoom = 1;
+    ID.dxN = 0;
+    const my = Math.max(0, (it.h * base - r.fh) / 2) / r.fh;
+    ID.dyN = -my;
+    idClamp(r.fw, r.fh);
+    $("#idZoom").value = 100;
+    idTipNote("没认准头部位置，请手动拖动照片对齐（虚线 1 是头顶、3 是下巴）");
+    if(quiet){ idPaintReport(); idDraw(); render(); }
+    else { idRefresh(); toast("没认准头部位置，手动对齐一下"); }
+    return;
+  }
+
+  const headH = a.headW * HEAD_K;
+  let s = (r.fh * (HEAD_BOT - HEAD_TOP)) / headH;
+  if(s < base) s = base;
+  ID.zoom = clampNum(s / base, 1, 8);
+  s = base * ID.zoom;
+  // 注意单位：yTop / xC 是"从画框左上角量"，别和"相对画框中心"混用
+  const yTop = r.fh / 2 + (a.top - it.h / 2) * s;
+  ID.dyN = (HEAD_TOP * r.fh - yTop) / r.fh;
+  // 报名照的"居中"就是头颅居中。身体偏是源片的问题（自拍举着手），
+  // 靠裁剪切不了，加权重只会把头也带歪，所以这里只按头算
+  const xC = r.fw / 2 + (a.cx - it.w / 2) * s;
+  ID.dxN = (r.fw / 2 - xC) / r.fh;
+  idClamp(r.fw, r.fh, (a.fromModel && ID.removeBg) ? 0.34 : 0);
+  $("#idZoom").value = Math.round(ID.zoom * 100);
+  idTipNote("");
+  if(quiet){
+    idCheckSrc().then(() => { idPaintReport(); idDraw(); render(); });
+  } else {
+    idRefresh();
+    toast("已按轮廓对齐，再看看要不要微调");
+  }
+}
+
+/* ---- 抠背景：从四边沿梯度向内生长 ----
+   逐像素和"把它拉进来的那个邻居"比较，所以墙面渐变不会挡住；
+   同时用整体色差上限兜住，防止一路吃进人像。 */
+function idFill(d, w, h, tol){
+  const N = w * h;
+  const ref = idQuantMode(d, w, h);
+  const localT = Math.max(10, tol);
+  const globalT = Math.max(110, tol * 5);
+  const mask = new Uint8ClampedArray(N).fill(255);   // 255 = 人，抠掉的才置 0
+  const seen = new Uint8Array(N);
+  const stack = new Int32Array(N);
+  let sp = 0;
+
+  const nearRef = (p, k) => {
+    const i = p * 4;
+    return Math.abs(d[i] - ref[0]) + Math.abs(d[i+1] - ref[1]) + Math.abs(d[i+2] - ref[2]) < k;
+  };
+  const seed = p => {
+    if(seen[p] || !nearRef(p, globalT * 0.62)) return;
+    seen[p] = 1; stack[sp++] = p;
+  };
+  for(let x = 0; x < w; x++){ seed(x); seed((h - 1) * w + x); }
+  for(let y = 0; y < h; y++){ seed(y * w); seed(y * w + w - 1); }
+
+  let removed = 0;
+  while(sp > 0){
+    const p = stack[--sp];
+    mask[p] = 0;
+    removed++;
+    const i = p * 4;
+    const x = p % w, y = (p / w) | 0;
+    const tryPush = q => {
+      if(seen[q]) return;
+      const j = q * 4;
+      const dl = Math.abs(d[i] - d[j]) + Math.abs(d[i+1] - d[j+1]) + Math.abs(d[i+2] - d[j+2]);
+      if(dl > localT) return;
+      if(!nearRef(q, globalT)) return;
+      seen[q] = 1; stack[sp++] = q;
+    };
+    if(x > 0) tryPush(p - 1);
+    if(x < w - 1) tryPush(p + 1);
+    if(y > 0) tryPush(p - w);
+    if(y < h - 1) tryPush(p + w);
+  }
+
+  const ratio = N ? removed / N : 0;
+  // 安全阀：人像中间那块被抠掉太多，说明阈值穿透了皮肤，宁可不换底
+  let fn = 0, fh = 0;
+  const fx0 = Math.round(w * 0.25), fx1 = Math.round(w * 0.75);
+  const fy0 = Math.round(h * 0.22), fy1 = Math.round(h * 0.62);
+  for(let y = fy0; y < fy1; y++){
+    for(let x = fx0; x < fx1; x++){
+      fn++;
+      if(mask[y * w + x] < 60) fh++;
+    }
+  }
+  const faceHit = fn ? fh / fn : 0;
+  if(ratio < 0.04) return { mask: null, ratio, faceHit };
+  if(faceHit > 0.25 || ratio > 0.75) return { mask: null, ratio, faceHit };
+
+  // 只柔化背景与人的交界，别把整个人糊掉
+  const soft = new Uint8ClampedArray(N);
+  for(let p0 = 0; p0 < N; p0++){
+    if(mask[p0]){ soft[p0] = 255; continue; }
+    let s1 = 0, c1 = 0;
+    const x = p0 % w, y = (p0 / w) | 0;
+    for(let dy = -1; dy <= 1; dy++){
+      const yy = y + dy; if(yy < 0 || yy >= h) continue;
+      for(let dx = -1; dx <= 1; dx++){
+        const xx = x + dx; if(xx < 0 || xx >= w) continue;
+        s1 += mask[yy * w + xx]; c1++;
+      }
+    }
+    soft[p0] = s1 / c1;
+  }
+  return { mask: soft, ratio };
+}
+
+async function idEncode(cv, maxKB){
+  const enc = q => new Promise(r => cv.toBlob(r, "image/jpeg", q));
+  if(!maxKB || maxKB <= 0){ const b = await enc(0.92); return { blob: b, q: 0.92 }; }
+  let best = null, lo = 0.2, hi = 0.96;
+  for(let i = 0; i < 9; i++){
+    const q = (lo + hi) / 2;
+    const b = await enc(q);
+    if(!b) break;
+    if(b.size <= maxKB * 1024){ best = { blob: b, q }; lo = q; }
+    else hi = q;
+  }
+  if(!best){ const b = await enc(0.2); best = { blob: b, q: 0.2 }; }
+  return best;
+}
+
+async function idRender(){
+  const spec = ID.spec;
+  const t = idT(spec.w, spec.h);
+  const cv = document.createElement("canvas");
+  cv.width = spec.w; cv.height = spec.h;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = ID.bg;
+  ctx.fillRect(0, 0, spec.w, spec.h);
+  ctx.drawImage(ID.img, t.sx, t.sy, t.sw, t.sh, 0, 0, spec.w, spec.h);
+
+  let bgRatio = null;
+  ID.maskNote = "";
+
+  if(ID.removeBg){
+    let mask = null, note = "";
+    if(SEG.state === "ready"){
+      try {
+        const sm = segMaskOf(cv);
+        let hb = null;
+        if(ID.an && ID.an.headW > 0 && t.sw > 0){
+          const kk = spec.w / t.sw;
+          hb = { x: (ID.an.cx - ID.an.headW / 2 - t.sx) * kk,
+                 y: (ID.an.top - t.sy) * kk,
+                 w: ID.an.headW * kk,
+                 h: ID.an.headW * HEAD_K * kk };
+        }
+        const st = maskStats(sm.mask, sm.w, sm.h, hb);
+        if(st.faceHit > 0.55) note = "分割结果异常（人脸被当成背景），已保留原背景";
+        else if(st.ratio < 0.02) note = "没找到背景，已保留原样";
+        else {
+          mask = sm.mask;
+          // 硬边先稍微柔一下，再让导向滤波把它贴到原图轮廓上
+          mask = softenMask(mask, sm.w, sm.h);
+          mask = guidedAlpha(mask, ctx.getImageData(0, 0, spec.w, spec.h).data,
+                             sm.w, sm.h, 4, 0.0012);
+        }
+      } catch(e){ note = ""; }
+    }
+    if(!mask && !note){
+      const img0 = ctx.getImageData(0, 0, spec.w, spec.h);
+      const fr = idFill(img0.data, spec.w, spec.h, ID.tol);
+      if(fr.mask) mask = fr.mask;
+      else if(fr.faceHit > 0.25) note = "容差把脸也抠了，已保留原背景；把容差调小再试";
+      else note = "只认出 " + Math.round(fr.ratio * 100) + "% 的背景，抠了会烂，已保留原背景";
+    }
+
+    if(mask){
+      const src = ctx.getImageData(0, 0, spec.w, spec.h);
+      const tmp = document.createElement("canvas");
+      tmp.width = spec.w; tmp.height = spec.h;
+      const tc = tmp.getContext("2d");
+      const gy = tc.createImageData(spec.w, spec.h);
+      gy.data.set(src.data);
+      for(let i = 0; i < mask.length; i++) gy.data[i * 4 + 3] = mask[i];
+      tc.putImageData(gy, 0, 0);
+      ctx.fillStyle = ID.bg;
+      ctx.fillRect(0, 0, spec.w, spec.h);
+      ctx.drawImage(tmp, 0, 0);
+
+      const chk = ctx.getImageData(0, 0, spec.w, spec.h).data;
+      const want = [parseInt(ID.bg.slice(1, 3), 16), parseInt(ID.bg.slice(3, 5), 16), parseInt(ID.bg.slice(5, 7), 16)];
+      let ok = 0, n = 0;
+      // 只数"被判成背景"的像素：把肩膀也算进去，纯度永远上不去
+      for(let p = 0; p < mask.length; p++){
+        if(mask[p] >= 128) continue;
+        const i = p * 4;
+        n++;
+        if(Math.abs(chk[i] - want[0]) + Math.abs(chk[i+1] - want[1]) + Math.abs(chk[i+2] - want[2]) < 24) ok++;
+      }
+      bgRatio = n ? ok / n : 1;
+    } else {
+      ID.maskNote = note;
+    }
+  }
+
+  const maxKB = parseInt($("#idKB").value, 10) || 0;
+  const enc = await idEncode(cv, maxKB);
+  const blob = enc.blob;
+  const name = (spec.k === "gwy" ? "报名照片" : spec.name) + ".JPG";
+  return {
+    blob, w: spec.w, h: spec.h, size: blob.size, q: enc.q, name,
+    type: "image/jpeg", url: URL.createObjectURL(blob), bgRatio
+  };
+}
+
+async function idGo(){
+  if(!ID.it || BUSY) return;
+  BUSY = true;
+  $("#btnRun").disabled = true;
+  $("#btnRun").textContent = "处理中…";
+  $("#bar").style.width = "30%";
+  try {
+    const out = await idRender();
+    if(ID.out) URL.revokeObjectURL(ID.out.url);
+    ID.out = out;
+    ID.outIm = await loadImg(out.url);
+    ID.showOut = true;
+    const sb = $("#idShowOut");
+    sb.style.display = "";
+    sb.textContent = "看原图";
+    $("#bar").style.width = "100%";
+    idCheckOut(out);
+    idPaintReport();
+    idDraw();
+    const kb = out.size / 1024;
+    toast("好了：" + out.w + "×" + out.h + " · " + kb.toFixed(1) + " KB");
+  } catch(e){
+    toast("生成失败：" + ((e && e.message) || e));
+  }
+  BUSY = false;
+  render();
+}
+
+async function idLoad(it){
+  ID.it = it;
+  ID.out = null; ID.outIm = null; ID.showOut = false;
+  ID.zoom = 1; ID.dxN = 0; ID.dyN = 0;
+  ID.rotDone = false;
+  ID.an = null; ID.srcRep = []; ID.outRep = [];
+  $("#idShowOut").style.display = "none";
+  $("#idZoom").value = 100;
+  ID.img = await loadImg(it.url);
+  ID.baseImg = ID.img;                    // 转正永远从这张重算
+  ID.baseW = ID.img.naturalWidth;
+  ID.baseH = ID.img.naturalHeight;
+  ID.rotTotal = 0; ID.rotPass = 0; ID.rotDone = false;
+  it.w = ID.img.naturalWidth;
+  it.h = ID.img.naturalHeight;
+  render();
+  const r = idFrameRect();
+  const base = Math.max(r.fw / it.w, r.fh / it.h);
+  const my = Math.max(0, (it.h * base - r.fh) / 2) / r.fh;
+  ID.dyN = -my;
+  idClamp(r.fw, r.fh);
+  await idRefresh();
+  // 放到框里只是起步，真正对齐要按轮廓来
+  if(ID.it === it && ID.an) idAuto(true);
+}
+
+/* ---------------- 交互绑定 ---------------- */
+/* 空闲时先把模型拉起来，别让第一张照片等 */
+(function preloadSeg(){
+  const go = () => { try { segReady(); faceReady(); } catch(e){} };
+  if(window.requestIdleCallback) requestIdleCallback(go, { timeout: 2500 });
+  else setTimeout(go, 1500);
+})();
+
+$("#btnPick").onclick = () => $("#fi").click();
+$("#btnDir").onclick = () => $("#fd").click();
+$("#fi").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+$("#fd").addEventListener("change", e => { addFiles(e.target.files); e.target.value = ""; });
+
+(function dnd(){
+  const drop = $("#drop");
+  let depth = 0;
+  ["dragenter", "dragover"].forEach(t => {
+    document.addEventListener(t, e => { e.preventDefault(); if(t === "dragenter") depth++; drop.classList.add("hot"); });
+  });
+  document.addEventListener("dragleave", e => { e.preventDefault(); if(--depth <= 0){ depth = 0; drop.classList.remove("hot"); } });
+  document.addEventListener("drop", e => {
+    e.preventDefault(); depth = 0; drop.classList.remove("hot");
+    if(e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  document.addEventListener("paste", e => {
+    const items = e.clipboardData && e.clipboardData.files;
+    if(items && items.length) addFiles(items);
+  });
+})();
+
+$("#btnRun").onclick = run;
+$("#btnZip").onclick = downloadAll;
+$("#btnClear").onclick = () => {
+  ITEMS.forEach(it => {
+    URL.revokeObjectURL(it.url);
+    if(it.outs) it.outs.forEach(o => URL.revokeObjectURL(o.url));
+  });
+  ITEMS = [];
+  if(ID.out) URL.revokeObjectURL(ID.out.url);
+  ID.it = null; ID.img = null; ID.out = null; ID.outIm = null;
+  ID.showOut = false; ID.an = null; ID.srcRep = []; ID.outRep = [];
+  if(STITCH){ URL.revokeObjectURL(STITCH.url); STITCH = null; }
+  $("#bar").style.width = "0%";
+  render();
+};
+function showPreview(src, cap){
+  $("#pvimg").src = src;
+  $("#pvcap").textContent = cap;
+  $("#pv").showModal();
+}
+$("#pv").addEventListener("click", e => {
+  if(e.target.id !== "pvimg") $("#pv").close();
+});
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape" && $("#pv").open) $("#pv").close();
+});
+$("#btnAbout").onclick = () => $("#dlg").showModal();
+$("#dlgOk").onclick = () => $("#dlg").close();
+
+/* 分段按钮 */
+function seg(el, key, after){
+  el.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if(!b) return;
+    $$("#" + el.id + " button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    after(b.dataset.v);
+  });
+}
+seg($("#segFmt"), "fmt", v => {
+  CFG.fmt = v;
+  $("#qWrap").style.display = v === "png" ? "none" : "";
+});
+seg($("#segSize"), "resize", v => {
+  CFG.resize = v;
+  const row = $("#rowNum");
+  if(v === "none"){ row.style.display = "none"; return; }
+  row.style.display = "flex";
+  if(v === "long"){ $("#numLab").textContent = "长边"; $("#unit").textContent = "px"; $("#num").value = CFG.longEdge; }
+  if(v === "width"){ $("#numLab").textContent = "宽"; $("#unit").textContent = "px"; $("#num").value = CFG.width; }
+  if(v === "percent"){ $("#numLab").textContent = "比例"; $("#unit").textContent = "%"; $("#num").value = CFG.percent; }
+});
+seg($("#segName"), "name", v => {
+  CFG.name = v;
+  $("#prefix").style.display = v === "prefix" ? "" : "none";
+});
+
+$("#num").addEventListener("input", e => {
+  const n = parseInt(e.target.value, 10) || 0;
+  if(CFG.resize === "long") CFG.longEdge = Math.max(1, n);
+  if(CFG.resize === "width") CFG.width = Math.max(1, n);
+  if(CFG.resize === "percent") CFG.percent = Math.min(400, Math.max(1, n));
+});
+$("#q").addEventListener("input", e => {
+  CFG.quality = parseInt(e.target.value, 10) / 100;
+  $("#qv").textContent = e.target.value;
+});
+$("#up").addEventListener("change", e => { CFG.upscale = e.target.checked; });
+$("#prefix").addEventListener("input", e => { CFG.prefix = e.target.value; });
+
+$("#tgWm").onclick = () => {
+  CFG.wm.on = !CFG.wm.on;
+  $("#tgWm").classList.toggle("on", CFG.wm.on);
+  $("#wmBox").classList.toggle("on", CFG.wm.on);
+};
+$("#wmText").addEventListener("input", e => { CFG.wm.text = e.target.value; });
+$("#wmSize").addEventListener("input", e => { CFG.wm.size = Math.max(8, parseInt(e.target.value, 10) || 36); });
+$("#wmColor").addEventListener("input", e => { CFG.wm.color = e.target.value; });
+$("#wmAlpha").addEventListener("input", e => {
+  CFG.wm.alpha = parseInt(e.target.value, 10) / 100;
+  $("#wmAv").textContent = e.target.value + "%";
+});
+$("#wmTile").addEventListener("change", e => { CFG.wm.tile = e.target.checked; });
+$("#pos").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if(!b) return;
+  $$("#pos button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+  CFG.wm.pos = b.dataset.p;
+});
+
+/* 手机端参数抽屉 */
+function closePanel(){ $("#side").classList.remove("open"); $("#mask").classList.remove("on"); }
+$("#btnPanel").onclick = () => { $("#side").classList.add("open"); $("#mask").classList.add("on"); };
+$("#btnPanelDone").onclick = closePanel;
+$("#mask").onclick = closePanel;
+
+/* ---------------- 模式切换 ---------------- */
+function setMode(m){
+  CFG.mode = m;
+  $$("#modes button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  $$(".side .grp").forEach(g => {
+    const dm = g.dataset.mode;
+    if(!dm) return;
+    g.style.display = dm.split(" ").indexOf(m) >= 0 ? "" : "none";
+  });
+  for(const it of ITEMS){
+    if(it.outs){ it.outs.forEach(o => URL.revokeObjectURL(o.url)); it.outs = null; }
+    it.fail = null;
+  }
+  if(STITCH){ URL.revokeObjectURL(STITCH.url); STITCH = null; }
+  $("#bar").style.width = "0%";
+  render();
+  if(m === "idphoto"){ requestAnimationFrame(() => { if(ID.img) idDraw(); }); }
+}
+
+$("#modes").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if(b && b.dataset.m !== CFG.mode) setMode(b.dataset.m);
+});
+
+seg($("#segGrid"), "grid", v => { CFG.grid.n = parseInt(v, 10) || 3; });
+$("#gridCrop").addEventListener("change", e => { CFG.grid.crop = e.target.checked; });
+$("#stWidth").addEventListener("input", e => {
+  CFG.stitch.width = Math.max(100, Math.min(8000, parseInt(e.target.value, 10) || 1080));
+});
+$("#stGap").addEventListener("input", e => {
+  CFG.stitch.gap = Math.max(0, Math.min(400, parseInt(e.target.value, 10) || 0));
+});
+$("#stBg").addEventListener("input", e => { CFG.stitch.bg = e.target.value; });
+
+/* ---------------- 视频抽帧 ---------------- */
+const VID = { busy: false, v: null, url: null, cands: [] };
+const isVid = f => /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(f.name);
+
+function lapVar(cv){
+  const long = Math.max(cv.width, cv.height);
+  const k = 256 / long;
+  const w = Math.max(8, Math.round(cv.width * k)), h = Math.max(8, Math.round(cv.height * k));
+  const c2 = document.createElement("canvas");
+  c2.width = w; c2.height = h;
+  const g = c2.getContext("2d", { willReadFrequently: true });
+  g.drawImage(cv, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h).data;
+  const a = new Float32Array(w * h);
+  for(let i = 0, j = 0; j < a.length; i += 4, j++) a[j] = (d[i] * 77 + d[i+1] * 150 + d[i+2] * 29) / 256;
+  let sum = 0, sum2 = 0, n = 0;
+  for(let y = 1; y < h - 1; y++){
+    for(let x = 1; x < w - 1; x++){
+      const i = y * w + x;
+      const v = 4 * a[i] - a[i-1] - a[i+1] - a[i-w] - a[i+w];
+      sum += v; sum2 += v * v; n++;
+    }
+  }
+  if(!n) return 0;
+  const m = sum / n;
+  return Math.max(0, sum2 / n - m * m);
+}
+
+/* 遮罩左右对称度：正脸高，侧脸低 */
+function maskSym(mask, w, h){
+  let sx = 0, n = 0, minY = h, maxY = -1;
+  for(let p = 0; p < mask.length; p++){
+    if(mask[p] >= 128){ sx += p % w; n++; const y = (p / w) | 0; if(y < minY) minY = y; if(y > maxY) maxY = y; }
+  }
+  if(!n) return 0;
+  const cx = sx / n;
+  let err = 0, rows = 0;
+  for(let y = minY; y <= maxY; y++){
+    let l = -1, r = -1;
+    for(let x = 0; x < w; x++){
+      if(mask[y * w + x] >= 128){ if(l < 0) l = x; r = x; }
+    }
+    if(l < 0) continue;
+    err += Math.abs((cx - l) - (r - cx));
+    rows++;
+  }
+  if(!rows) return 0;
+  const e = err / rows / w;
+  return Math.max(0, 1 - e / 0.09);
+}
+
+function seekTo(v, t){
+  return new Promise(res => {
+    let done = false;
+    const fin = () => { if(done) return; done = true; v.onseeked = null; res(); };
+    v.onseeked = fin;
+    setTimeout(fin, 900);
+    v.currentTime = t;
+  });
+}
+
+/* 视频打不开时，先弄清是什么编码，才能把话说清楚 */
+async function sniffCodec(file){
+  const hit = b => {
+    for(let i = 0; i + 4 <= b.length; i++){
+      const a = b[i], c = b[i + 1], d = b[i + 2], e = b[i + 3];
+      if(a === 0x68){
+        if((c === 0x76 && d === 0x63 && e === 0x31) ||
+           (c === 0x65 && d === 0x76 && e === 0x31)) return "hevc";
+      }
+      if(a === 0x61 && c === 0x76 && d === 0x63 && e === 0x31) return "h264";
+      if(a === 0x61 && c === 0x76 && d === 0x30 && e === 0x31) return "av1";
+      if(a === 0x76 && c === 0x70 && d === 0x30 && e === 0x39) return "vp9";
+    }
+    return "";
+  };
+  try {
+    // 安卓把 moov 放在文件末尾，hvc1 可能离结尾还有近 1 MB，窗口给小了会漏
+    const HEAD = 524288, TAIL = 2097152;
+    const head = new Uint8Array(await file.slice(0, Math.min(HEAD, file.size)).arrayBuffer());
+    const k = hit(head);
+    if(k) return k;
+    if(file.size > HEAD){
+      const t0 = Math.max(0, file.size - TAIL);
+      return hit(new Uint8Array(await file.slice(t0).arrayBuffer()));
+    }
+  } catch(e){}
+  return "";
+}
+
+function vidCanHevc(){
+  try {
+    const v = document.createElement("video");
+    return !!(v.canPlayType('video/mp4; codecs="hvc1"') ||
+              v.canPlayType('video/mp4; codecs="hev1"'));
+  } catch(e){ return false; }
+}
+
+(function initVHelp(){
+  const b = document.getElementById("vhelpOk");
+  if(b) b.onclick = () => document.getElementById("vhelp").close();
+})();
+
+const VHELP_WHY = {
+  hevc: "它是 <b>H.265 / HEVC</b> 编码。红米、iPhone 这些手机默认就用这种格式录像，" +
+        "而 Windows 默认不带这种解码器，浏览器打不开——不是文件坏了，也不是本软件的问题。",
+  x: "这台电脑没能解开这段视频。通常是编码比较新（H.265 / HEVC、AV1）或者文件本身损坏，" +
+     "不是本软件的问题。"
+};
+
+function vidHelp(file, kind){
+  const w = document.getElementById("vhelpWhy");
+  if(w) w.innerHTML = VHELP_WHY[kind] || VHELP_WHY.x;
+  const t = $("#vhelpFile");
+  if(t) t.textContent = "文件：" + ((file && file.name) || "视频") +
+    ((file && file.size) ? " · " + fmtBytes(file.size) : "");
+  const d = $("#vhelp");
+  if(d) d.showModal();
+}
+
+async function idVideoFile(file){
+  if(VID.busy) return;
+  VID.busy = true;
+  BUSY = true;
+  const sb = $("#stat");
+  if(sb) sb.textContent = "正在从视频里挑帧…";
+  $("#bar").style.width = "0%";
+  if(VID.url) URL.revokeObjectURL(VID.url);
+  const url = URL.createObjectURL(file);
+  VID.url = url;
+  const v = document.createElement("video");
+  v.src = url; v.muted = true; v.playsInline = true; v.preload = "auto";
+  VID.v = v;
+  try {
+    const codec = await sniffCodec(file);
+    VID.codec = codec;
+    if(codec === "hevc" && !vidCanHevc()) throw new Error("__HEVC__");
+    await new Promise((res, rej) => {
+      v.onloadeddata = () => res();
+      v.onerror = () => {
+        const c = v.error ? v.error.code : 0;
+        rej(new Error(codec === "hevc" || c === 4 ? "__HEVC__"
+                                                    : "这个视频打不开，换个 mp4 再试"));
+      };
+      setTimeout(() => rej(new Error("__VIDX__")), 20000);
+    });
+    await segReady();
+    const dur = Math.min(v.duration || 0, 900);
+    if(!dur) throw new Error("视频时长读不出来");
+    const N = 24;
+    const cands = [];
+    for(let i = 0; i < N; i++){
+      const t = Math.min(dur * (i + 0.5) / N, Math.max(0, dur - 0.06));
+      await seekTo(v, t);
+      if(!v.videoWidth) continue;
+      const k = Math.min(1, 640 / Math.max(v.videoWidth, v.videoHeight));
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(8, Math.round(v.videoWidth * k));
+      cv.height = Math.max(8, Math.round(v.videoHeight * k));
+      cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+      const sharp = lapVar(cv);
+      let sym = 0.6, person = 0;
+      if(SEG.state === "ready"){
+        try {
+          const sm = segMaskOf(cv);
+          sym = maskSym(sm.mask, sm.w, sm.h);
+          person = 1 - maskStats(sm.mask, sm.w, sm.h).ratio;
+        } catch(e){}
+      }
+      cands.push({ t, cv, sharp, sym, person });
+      $("#bar").style.width = Math.round((i + 1) / N * 100) + "%";
+      await new Promise(r => setTimeout(r, 0));
+    }
+    if(!cands.length) throw new Error("这段视频里没抽到能用的画面，可能整段太暗或没拍到人");
+
+    const maxS = Math.max(...cands.map(c => c.sharp)) || 1;
+    for(const c of cands){
+      const sz = Math.max(0, 1 - Math.abs(c.person - 0.42) / 0.42);
+      c.score = 0.45 * (c.sharp / maxS) + 0.35 * c.sym + 0.20 * sz;
+    }
+    cands.sort((a, b) => b.score - a.score);
+    // 时间上别挨太近
+    const pick = [];
+    for(const c of cands){
+      if(pick.length >= 6) break;
+      if(pick.some(o => Math.abs(o.t - c.t) < dur / N * 1.5)) continue;
+      pick.push(c);
+    }
+    pick.sort((a, b) => a.t - b.t);
+    VID.cands = pick;
+    showFramePick(pick, dur);
+  } catch(e){
+    const m = (e && e.message) || "视频处理失败";
+    if(m === "__HEVC__"){ vidHelp(file, "hevc"); }
+    else if(m === "__VIDX__"){ vidHelp(file, VID.codec === "hevc" ? "hevc" : "x"); }
+    else { toast(m); }
+    VID.busy = false; BUSY = false;
+    render();
+  }
+}
+
+function showFramePick(pick, dur){
+  const g = $("#vgrid");
+  g.innerHTML = "";
+  $("#vnote").textContent = "视频 " + dur.toFixed(1) + " 秒，共抽了 24 帧，这里是最好的 " + pick.length + " 张。";
+  pick.forEach((c, i) => {
+    const b = document.createElement("button");
+    const im = document.createElement("img");
+    im.src = c.cv.toDataURL("image/jpeg", 0.8);
+    const sp = document.createElement("span");
+    sp.textContent = c.t.toFixed(1) + "s";
+    b.appendChild(im); b.appendChild(sp);
+    b.onclick = () => { $("#vpick").close(); idUseFrame(c.t); };
+    g.appendChild(b);
+  });
+  $("#vpick").showModal();
+}
+
+async function idUseFrame(t){
+  const v = VID.v;
+  if(!v) return;
+  toast("正在取这一帧…");
+  await seekTo(v, t);
+  const cv = document.createElement("canvas");
+  cv.width = v.videoWidth; cv.height = v.videoHeight;
+  cv.getContext("2d").drawImage(v, 0, 0);
+  const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.96));
+  const f = new File([blob], "视频抽帧.jpg", { type: "image/jpeg" });
+  VID.busy = false; BUSY = false;
+  for(const old of ITEMS) URL.revokeObjectURL(old.url);
+  ITEMS = [];
+  const one = { id: ++SEQ, file: f, name: "视频抽帧.jpg", size: f.size, w: 0, h: 0,
+                url: URL.createObjectURL(f), outs: null, fail: null };
+  ITEMS.push(one);
+  await idLoad(one);
+  render();
+}
+
+/* ---------------- 报名照控件 ---------------- */
+function idDropOut(){
+  if(ID.out){ URL.revokeObjectURL(ID.out.url); ID.out = null; }
+  ID.outIm = null; ID.showOut = false; ID.outRep = [];
+  const sb = $("#idShowOut");
+  if(sb){ sb.style.display = "none"; sb.textContent = "看成品"; }
+}
+
+function idSetBg(v){
+  ID.bg = v;
+  $$("#segBg button").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+}
+
+function idSpecNote(){
+  const sp = ID.spec;
+  const kb = parseInt($("#idKB").value, 10) || 0;
+  $("#idSpecNote").textContent = sp.w + "×" + sp.h + " px · " +
+    (kb ? "上限 " + kb + " KB" : "体积不限") +
+    (sp.k === "gwy" ? " · 官方要求白底或蓝底、头部约占 2/3" : "");
+}
+
+let idTimer = 0;
+function idLater(){
+  clearTimeout(idTimer);
+  idTimer = setTimeout(() => { if(ID.it) idRefresh(); }, 240);
+}
+
+(function initIdUI(){
+  const sel = $("#idSpec");
+  for(const sp of ID_SPECS){
+    const o = document.createElement("option");
+    o.value = sp.k;
+    o.textContent = sp.name + "  " + sp.w + "×" + sp.h;
+    sel.appendChild(o);
+  }
+  sel.value = ID.spec.k;
+  idSpecNote();
+
+  sel.addEventListener("change", () => {
+    const sp = ID_SPECS.find(x => x.k === sel.value) || ID_SPECS[0];
+    ID.spec = sp;
+    if(sp.bg && sp.bg.indexOf(ID.bg) < 0) idSetBg(sp.bg[0]);
+    $("#idKB").value = sp.kb || 0;
+    idSpecNote();
+    idDropOut();
+    idRefresh();
+    render();
+  });
+
+  $("#segBg").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if(!b) return;
+    idSetBg(b.dataset.v);
+    idDropOut();
+    idRefresh();
+    render();
+  });
+
+  $("#idRemoveBg").addEventListener("change", e => {
+    ID.removeBg = e.target.checked;
+    $("#idTolWrap").style.display = e.target.checked ? "" : "none";
+    idDropOut();
+    render();
+  });
+
+  $("#idTol").addEventListener("input", e => {
+    ID.tol = parseInt(e.target.value, 10) || 30;
+    $("#idTolV").textContent = e.target.value;
+    idDropOut();
+  });
+
+  $("#idKB").addEventListener("input", () => { idSpecNote(); idDropOut(); render(); });
+
+  $("#idGuides").addEventListener("change", e => {
+    ID.guides = e.target.checked;
+    idDraw();
+  });
+
+  $("#idZoom").addEventListener("input", e => {
+    const r = idFrameRect();
+    ID.zoom = clampNum((parseInt(e.target.value, 10) || 100) / 100, 1, 8);
+    idClamp(r.fw, r.fh);
+    idDraw();
+    idLater();
+  });
+
+  $("#idAuto").onclick = idAuto;
+
+  $("#idReset").onclick = () => {
+    ID.zoom = 1; ID.dxN = 0; ID.dyN = 0;
+    $("#idZoom").value = 100;
+    const r = idFrameRect();
+    idClamp(r.fw, r.fh);
+    idDraw();
+    idLater();
+  };
+
+  $("#idShowOut").onclick = () => {
+    if(!ID.out) return;
+    ID.showOut = !ID.showOut;
+    $("#idShowOut").textContent = ID.showOut ? "看原图" : "看成品";
+    idDraw();
+  };
+
+  const el = $("#idprev");
+  const pts = new Map();
+  let lx = 0, ly = 0, pinch0 = 0, zoom0 = 1, dragging = false;
+
+  el.addEventListener("pointerdown", e => {
+    if(!ID.it) return;
+    if(ID.showOut){ ID.showOut = false; $("#idShowOut").textContent = "看成品"; }
+    el.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(pts.size === 1){ dragging = true; lx = e.clientX; ly = e.clientY; el.classList.add("drag"); }
+    else if(pts.size === 2){
+      const v = [...pts.values()];
+      pinch0 = Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1;
+      zoom0 = ID.zoom;
+    }
+  });
+
+  el.addEventListener("pointermove", e => {
+    if(!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const r = idFrameRect();
+    if(pts.size >= 2){
+      const v = [...pts.values()];
+      const d = Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y);
+      ID.zoom = clampNum(zoom0 * d / pinch0, 1, 8);
+      $("#idZoom").value = Math.round(ID.zoom * 100);
+      idClamp(r.fw, r.fh);
+      idDraw();
+      return;
+    }
+    if(!dragging) return;
+    ID.dxN += (e.clientX - lx) / r.fh;
+    ID.dyN += (e.clientY - ly) / r.fh;
+    lx = e.clientX; ly = e.clientY;
+    idClamp(r.fw, r.fh);
+    idDraw();
+  });
+
+  const end = e => {
+    pts.delete(e.pointerId);
+    if(pts.size === 0){
+      dragging = false;
+      el.classList.remove("drag");
+      idLater();
+    }
+    pinch0 = 0;
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+
+  el.addEventListener("wheel", e => {
+    if(!ID.it) return;
+    e.preventDefault();
+    const r = idFrameRect();
+    ID.zoom = clampNum(ID.zoom * Math.exp(-e.deltaY * 0.0012), 1, 8);
+    $("#idZoom").value = Math.round(ID.zoom * 100);
+    idClamp(r.fw, r.fh);
+    idDraw();
+    idLater();
+  }, { passive: false });
+
+  if("ResizeObserver" in window && el){
+    new ResizeObserver(() => { if(CFG.mode === "idphoto" && ID.img) idDraw(); }).observe(el);
+  }
+})();
+
+setMode("idphoto");
+</script>
+</body>
+</html>

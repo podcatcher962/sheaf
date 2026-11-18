@@ -1,0 +1,20 @@
+# 只放源码，不放样张、产物、测试脚本
+# 真实照片（含用于测试的人像）一律不进仓库
+_samples/
+*.jpg
+*.jpeg
+*.png
+*.webp
+!app.png
+build/
+dist/
+__pycache__/
+*.pyc
+_t*.py
+_an*.py
+_dbg_*.py
+_p_*.py
+_clean*.py
+_mkicon.py
+*.zip
+*.mp4
