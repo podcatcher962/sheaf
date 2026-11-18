@@ -1269,7 +1269,7 @@ async function faceReady(){
   if(FACE.state === "ready") return true;
   if(FACE.state === "err") return false;
   if(FACE.state === "loading"){
-    for(let i = 0; i < 120 && FACE.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
+    for(let i = 0; i < 900 && FACE.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
     return FACE.state === "ready";
   }
   FACE.state = "loading";
@@ -1334,7 +1334,7 @@ async function segReady(){
   if(SEG.state === "ready") return true;
   if(SEG.state === "err") return false;
   if(SEG.state === "loading"){
-    for(let i = 0; i < 120 && SEG.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
+    for(let i = 0; i < 900 && SEG.state === "loading"; i++) await new Promise(r => setTimeout(r, 100));
     return SEG.state === "ready";
   }
   SEG.state = "loading";
@@ -2610,8 +2610,29 @@ async function idLoad(it){
 
 /* ---------------- 交互绑定 ---------------- */
 /* 空闲时先把模型拉起来，别让第一张照片等 */
+/* ---------------- 模型加载提示 ---------------- */
+/* 网页版首次打开要下载约 3 MB 的人像模型（wasm 压缩后 2.9 MB + 人脸模型 250 KB）。
+   没有这行提示时，用户只看界面不动，会以为软件坏了；本地 exe 走本机文件，一两秒就好 */
+let HINT_T = null;
+function modelBusy(){ return SEG.state === "loading" || FACE.state === "loading"; }
+function startModelHint(){
+  if(HINT_T) return;
+  const say = () => {
+    const el = $("#stat");
+    if(!el) return;
+    if(!modelBusy()){
+      clearInterval(HINT_T); HINT_T = null;
+      if(!ITEMS.length) el.textContent = "还没有图片";
+      return;
+    }
+    if(!ITEMS.length) el.textContent = "正在加载人像模型（首次约 3 MB，装好之后就快了）…";
+  };
+  HINT_T = setInterval(say, 500);
+  say();
+}
+
 (function preloadSeg(){
-  const go = () => { try { segReady(); faceReady(); } catch(e){} };
+  const go = () => { try { startModelHint(); segReady(); faceReady(); } catch(e){} };
   if(window.requestIdleCallback) requestIdleCallback(go, { timeout: 2500 });
   else setTimeout(go, 1500);
 })();
